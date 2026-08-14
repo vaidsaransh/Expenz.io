@@ -175,5 +175,39 @@ class TestExpenseTracker(unittest.TestCase):
         # Clean up
         self.client.post('/api/expenses/clear-all', headers={"X-User-Id": "user_copilot_test"})
 
+    def test_10_month_dependent_reset(self):
+        uid = "user_month_reset_test"
+        # Log expenses in July 2026 and August 2026
+        self.client.post('/api/expenses', headers={"X-User-Id": uid},
+            json={"date": "2026-07-15", "amount": 50.0, "category": "Food & Dining", "description": "July Lunch"}
+        )
+        self.client.post('/api/expenses', headers={"X-User-Id": uid},
+            json={"date": "2026-08-10", "amount": 120.0, "category": "Shopping & Retail", "description": "August Shoes"}
+        )
+        self.client.post('/api/expenses', headers={"X-User-Id": uid},
+            json={"date": "2026-08-20", "amount": 30.0, "category": "Transportation", "description": "August Train"}
+        )
+
+        # Clear ONLY August 2026
+        res = self.client.post('/api/expenses/clear-all', headers={"X-User-Id": uid},
+            json={"month": "2026-08"}
+        )
+        self.assertEqual(res.status_code, 200)
+        data = res.get_json()
+        self.assertTrue(data["success"])
+        self.assertEqual(data["deleted_count"], 2)
+
+        # Verify July expense still exists
+        res_list = self.client.get('/api/expenses', headers={"X-User-Id": uid})
+        data_list = res_list.get_json()
+        self.assertEqual(data_list["pagination"]["total_items"], 1)
+        self.assertEqual(data_list["data"][0]["description"], "July Lunch")
+
+        # Now clear all
+        res_all = self.client.post('/api/expenses/clear-all', headers={"X-User-Id": uid}, json={"month": "all"})
+        self.assertEqual(res_all.status_code, 200)
+        res_empty = self.client.get('/api/expenses', headers={"X-User-Id": uid})
+        self.assertEqual(res_empty.get_json()["pagination"]["total_items"], 0)
+
 if __name__ == '__main__':
     unittest.main()

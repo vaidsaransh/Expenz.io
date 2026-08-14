@@ -54,14 +54,19 @@ function setUserId(newUid) {
 async function apiFetch(url, options = {}) {
     options.headers = options.headers || {};
     const userId = getUserId();
-    const apiKey = localStorage.getItem('gemini_api_key');
+    const apiKey = localStorage.getItem('ai_api_key') || localStorage.getItem('gemini_api_key') || '';
+    const provider = localStorage.getItem('ai_provider') || 'gemini';
     
     if (options.headers instanceof Headers) {
         if (!options.headers.has('X-User-Id')) options.headers.set('X-User-Id', userId);
+        if (apiKey && !options.headers.has('X-AI-API-Key')) options.headers.set('X-AI-API-Key', apiKey);
         if (apiKey && !options.headers.has('X-Gemini-API-Key')) options.headers.set('X-Gemini-API-Key', apiKey);
+        if (provider && !options.headers.has('X-AI-Provider')) options.headers.set('X-AI-Provider', provider);
     } else {
         options.headers['X-User-Id'] = userId;
+        if (apiKey && !options.headers['X-AI-API-Key']) options.headers['X-AI-API-Key'] = apiKey;
         if (apiKey && !options.headers['X-Gemini-API-Key']) options.headers['X-Gemini-API-Key'] = apiKey;
+        if (provider && !options.headers['X-AI-Provider']) options.headers['X-AI-Provider'] = provider;
     }
     return fetch(url, options);
 }
@@ -144,6 +149,9 @@ function initEventListeners() {
     document.getElementById('closeApiKeyModalBtn')?.addEventListener('click', closeApiKeyModal);
     document.getElementById('cancelApiKeyModalBtn')?.addEventListener('click', closeApiKeyModal);
     document.getElementById('apiKeyForm')?.addEventListener('submit', handleApiKeySubmit);
+    document.getElementById('aiProviderSelect')?.addEventListener('change', (e) => {
+        updateProviderHelpUI(e.target.value);
+    });
 
     // Initialize Mobile Experience & Navigation
     initMobileExperience();
@@ -625,8 +633,10 @@ async function fetchSummary() {
         const data = await res.json();
         if (data.success) {
             state.summary = data.data;
+            state.selectedMonthLabel = data.data.active_month_label || 'Current Month';
             updateDashboardMetrics(data.data);
             renderCharts(data.data);
+            updateResetButtonUI();
 
             // Populate / sync month dropdown
             const monthSelect = document.getElementById('dashboardMonthSelector');
@@ -1283,41 +1293,57 @@ async function handleDeleteExpense(id) {
 }
 
 async function handleClearAllExpenses() {
-    const count = state.pagination.total_items;
-    if (count === 0) {
-        showToast('No logged expenses to reset.', 'error');
-        return;
-    }
+    const activeMonth = state.selectedMonth;
+    const monthLabel = state.selectedMonthLabel || (activeMonth === 'all' ? 'All Months' : activeMonth);
+    const isSpecific = activeMonth && activeMonth !== 'all' && activeMonth !== 'auto';
+    
+    const promptText = isSpecific
+        ? `⚠️ Are you sure you want to delete ALL expenses for ${monthLabel} from expenses_data.xlsx?\n\nExpenses in other months will NOT be deleted.`
+        : `⚠️ Are you sure you want to delete ALL expenses across ALL months from expenses_data.xlsx?\n\nThis will wipe all records. This action cannot be undone.`;
 
-    if (!confirm(`⚠️ Are you sure you want to delete ALL ${count} expense records from expenses_data.xlsx?\n\nThis will reset the tracker to empty ($0.00). This action cannot be undone.`)) {
-        return;
-    }
+    if (!confirm(promptText)) return;
 
     try {
-        const res = await apiFetch('/api/expenses/clear-all', { method: 'POST' });
+        const res = await apiFetch('/api/expenses/clear-all', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ month: activeMonth })
+        });
         const data = await res.json();
         if (data.success) {
-            showToast('🗑️ All expenses have been reset & cleared from Excel!', 'success');
-            
-            // Reset pagination and filters
+            showToast(data.message || 'Expenses cleared successfully!', 'success');
             state.pagination.page = 1;
-            state.filters.search = '';
-            state.filters.category = 'all';
-            state.filters.payment_method = 'all';
-            
-            const catFilter = document.getElementById('tableCategoryFilter');
-            const payFilter = document.getElementById('tablePaymentFilter');
-            const searchInput = document.getElementById('tableSearchInput');
-            if (catFilter) catFilter.value = 'all';
-            if (payFilter) payFilter.value = 'all';
-            if (searchInput) searchInput.value = '';
-
             await Promise.all([fetchSummary(), fetchExpenses()]);
         } else {
-            showToast(data.error || 'Failed to clear expenses', 'error');
+            showToast(data.error || 'Failed to reset expenses', 'error');
         }
     } catch (err) {
         showToast('Error: ' + err.message, 'error');
+    }
+}
+
+function updateResetButtonUI() {
+    const btn = document.getElementById('clearAllExpensesBtn');
+    const mobResetItem = document.getElementById('mobActionResetAll');
+    const activeMonth = state.selectedMonth;
+    const monthLabel = state.selectedMonthLabel || 'Selected Month';
+    const isSpecific = activeMonth && activeMonth !== 'all' && activeMonth !== 'auto';
+
+    if (btn) {
+        if (isSpecific) {
+            btn.innerHTML = `<i class="fa-solid fa-trash-can"></i> <span>Reset ${monthLabel}</span>`;
+            btn.title = `Clear all expense transactions for ${monthLabel} from Excel spreadsheet`;
+        } else {
+            btn.innerHTML = '<i class="fa-solid fa-trash-can"></i> <span>Reset All</span>';
+            btn.title = 'Clear all expense transactions across all months from Excel spreadsheet';
+        }
+    }
+
+    if (mobResetItem) {
+        const strong = mobResetItem.querySelector('strong');
+        if (strong) {
+            strong.textContent = isSpecific ? `Reset ${monthLabel} Expenses` : 'Reset All Expenses';
+        }
     }
 }
 
@@ -1433,17 +1459,24 @@ function showToast(message, type = 'success') {
 }
 
 /* ==========================================================================
-   Gemini API Key Modal & Settings
+   AI Provider & API Key Modal & Settings
    ========================================================================== */
 function openApiKeyModal() {
     const modal = document.getElementById('apiKeyModal');
     if (!modal) return;
     modal.classList.add('active');
 
+    const providerSelect = document.getElementById('aiProviderSelect');
     const input = document.getElementById('apiKeyInput');
-    const saved = localStorage.getItem('gemini_api_key') || '';
+    const savedKey = localStorage.getItem('ai_api_key') || localStorage.getItem('gemini_api_key') || '';
+    const savedProvider = localStorage.getItem('ai_provider') || 'gemini';
+
+    if (providerSelect) {
+        providerSelect.value = savedProvider;
+        updateProviderHelpUI(savedProvider);
+    }
     if (input) {
-        input.value = saved;
+        input.value = savedKey;
         input.focus();
     }
 }
@@ -1453,51 +1486,103 @@ function closeApiKeyModal() {
     if (modal) modal.classList.remove('active');
 }
 
+function updateProviderHelpUI(provider) {
+    const input = document.getElementById('apiKeyInput');
+    const link = document.getElementById('getApiKeyLink');
+    const label = document.getElementById('apiKeyLabelText');
+
+    if (provider === 'openai') {
+        if (input) input.placeholder = 'sk-proj-... or sk-...';
+        if (link) {
+            link.href = 'https://platform.openai.com/api-keys';
+            link.textContent = 'Get an OpenAI API key →';
+        }
+        if (label) label.textContent = 'OpenAI API Key';
+    } else if (provider === 'anthropic') {
+        if (input) input.placeholder = 'sk-ant-api03-...';
+        if (link) {
+            link.href = 'https://console.anthropic.com/';
+            link.textContent = 'Get an Anthropic Claude key →';
+        }
+        if (label) label.textContent = 'Anthropic API Key';
+    } else if (provider === 'openrouter') {
+        if (input) input.placeholder = 'sk-or-v1-...';
+        if (link) {
+            link.href = 'https://openrouter.ai/keys';
+            link.textContent = 'Get an OpenRouter key →';
+        }
+        if (label) label.textContent = 'OpenRouter API Key';
+    } else {
+        // Gemini
+        if (input) input.placeholder = 'AIzaSy... or AQ.Ab8...';
+        if (link) {
+            link.href = 'https://aistudio.google.com/';
+            link.textContent = 'Get a free Gemini key →';
+        }
+        if (label) label.textContent = 'Google Gemini API Key';
+    }
+}
+
 async function handleApiKeySubmit(e) {
     e.preventDefault();
+    const providerSelect = document.getElementById('aiProviderSelect');
     const input = document.getElementById('apiKeyInput');
     const newKey = input ? input.value.trim() : '';
+    const newProvider = providerSelect ? providerSelect.value : 'gemini';
 
     if (!newKey) {
-        showToast('Please enter a valid Gemini API key', 'error');
+        showToast('Please enter a valid API key', 'error');
         return;
     }
 
     try {
+        localStorage.setItem('ai_api_key', newKey);
         localStorage.setItem('gemini_api_key', newKey);
+        localStorage.setItem('ai_provider', newProvider);
         
         // Also save to server backend config
         const res = await apiFetch('/api/config/api-key', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ api_key: newKey })
+            body: JSON.stringify({ api_key: newKey, provider: newProvider })
         });
         const data = await res.json();
         
         if (data.success) {
-            showToast('Gemini API key saved & verified!', 'success');
-            updateApiKeyBadge(true);
+            showToast(`${getProviderDisplayName(newProvider)} key saved & verified!`, 'success');
+            updateApiKeyBadge(true, newProvider);
             closeApiKeyModal();
         } else {
             showToast(data.error || 'Failed to save key on server', 'error');
         }
     } catch (err) {
         showToast('Key saved locally in browser!', 'success');
-        updateApiKeyBadge(true);
+        updateApiKeyBadge(true, newProvider);
         closeApiKeyModal();
+    }
+}
+
+function getProviderDisplayName(provider) {
+    switch (provider) {
+        case 'openai': return 'OpenAI';
+        case 'anthropic': return 'Claude';
+        case 'openrouter': return 'OpenRouter';
+        default: return 'Gemini';
     }
 }
 
 async function checkApiKeyStatus() {
     try {
-        const clientKey = localStorage.getItem('gemini_api_key');
+        const clientKey = localStorage.getItem('ai_api_key') || localStorage.getItem('gemini_api_key');
+        const clientProvider = localStorage.getItem('ai_provider') || 'gemini';
+
         if (clientKey) {
-            updateApiKeyBadge(true);
+            updateApiKeyBadge(true, clientProvider);
             // Sync with backend if needed
             fetch('/api/config/api-key', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ api_key: clientKey })
+                body: JSON.stringify({ api_key: clientKey, provider: clientProvider })
             }).catch(() => {});
             return;
         }
@@ -1505,29 +1590,31 @@ async function checkApiKeyStatus() {
         const res = await apiFetch('/api/config/api-key');
         const data = await res.json();
         if (data.success && data.configured) {
-            updateApiKeyBadge(true);
+            updateApiKeyBadge(true, data.provider || 'gemini');
         } else {
-            updateApiKeyBadge(false);
+            updateApiKeyBadge(false, 'gemini');
         }
     } catch (err) {
         console.warn('API key status check failed:', err);
     }
 }
 
-function updateApiKeyBadge(isConfigured) {
+function updateApiKeyBadge(isConfigured, provider = 'gemini') {
     const btnText = document.getElementById('apiKeyBtnText');
     const btn = document.getElementById('openApiKeyModalBtn');
+    const providerName = getProviderDisplayName(provider);
+
     if (btn) {
         if (isConfigured) {
-            if (btnText) btnText.textContent = 'AI Key ✓';
+            if (btnText) btnText.textContent = `${providerName} ✓`;
             btn.style.borderColor = 'rgba(16, 185, 129, 0.4)';
             btn.style.color = 'var(--accent-emerald)';
-            btn.title = 'Gemini AI Key Configured ✓';
+            btn.title = `${providerName} API Key Configured ✓`;
         } else {
             if (btnText) btnText.textContent = 'Set AI Key';
             btn.style.borderColor = 'rgba(244, 63, 94, 0.4)';
             btn.style.color = 'var(--accent-rose)';
-            btn.title = 'Configure Gemini AI Key';
+            btn.title = 'Configure AI Model & API Key';
         }
     }
 }

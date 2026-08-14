@@ -199,8 +199,14 @@ def delete_expense(expense_id):
 def clear_all_expenses():
     try:
         user_id = get_current_user_id()
-        excel_manager.clear_all_expenses(user_id=user_id)
-        return jsonify({"success": True, "message": "All expenses have been reset and cleared from Excel!"})
+        data = request.get_json(silent=True) or {}
+        month = request.args.get('month') or data.get('month')
+        deleted = excel_manager.clear_all_expenses(month=month, user_id=user_id)
+        if deleted == -1 or not month or month.lower() in ['all', 'auto']:
+            msg = "All expenses have been reset and cleared from Excel!"
+        else:
+            msg = f"Cleared {deleted} expense(s) for {month} from Excel!"
+        return jsonify({"success": True, "message": msg, "deleted_count": deleted})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -235,9 +241,16 @@ def upload_statement():
         if file.filename == '':
             return jsonify({"success": False, "error": "No selected file"}), 400
 
-        custom_key = request.headers.get("X-Gemini-API-Key") or request.form.get("gemini_api_key")
-        # Parse with Gemini LLM
-        parsed_transactions = gemini_parser.parse_statement(file, filename=file.filename, custom_api_key=custom_key)
+        custom_key = request.headers.get("X-AI-API-Key") or request.headers.get("X-Gemini-API-Key") or request.form.get("api_key") or request.form.get("gemini_api_key")
+        custom_provider = request.headers.get("X-AI-Provider") or request.form.get("ai_provider")
+        
+        # Parse with active AI provider
+        parsed_transactions = gemini_parser.parse_statement(
+            file,
+            filename=file.filename,
+            custom_api_key=custom_key,
+            custom_provider=custom_provider
+        )
         detected_month = parsed_transactions[0]["date"][:7] if parsed_transactions and len(parsed_transactions[0].get("date", "")) >= 7 else None
         
         return jsonify({
@@ -256,7 +269,9 @@ def generate_insights():
         user_id = get_current_user_id()
         data = request.get_json(silent=True) or {}
         month = request.args.get('month') or data.get('month')
-        custom_key = request.headers.get("X-Gemini-API-Key") or data.get("gemini_api_key")
+        custom_key = request.headers.get("X-AI-API-Key") or request.headers.get("X-Gemini-API-Key") or data.get("api_key") or data.get("gemini_api_key")
+        custom_provider = request.headers.get("X-AI-Provider") or data.get("ai_provider")
+        
         summary = excel_manager.get_summary_stats(month=month, user_id=user_id)
         expenses = excel_manager.get_expenses(month=summary.get("active_month"), user_id=user_id)
         
@@ -264,7 +279,8 @@ def generate_insights():
             month_label=summary.get("active_month_label", "Selected Month"),
             summary_data=summary,
             expenses_data=expenses,
-            custom_api_key=custom_key
+            custom_api_key=custom_key,
+            custom_provider=custom_provider
         )
         return jsonify({
             "success": True,
@@ -282,7 +298,8 @@ def copilot_chat():
         message = data.get('message', '').strip()
         history = data.get('history', [])
         month = data.get('month')
-        custom_key = request.headers.get("X-Gemini-API-Key") or data.get("gemini_api_key")
+        custom_key = request.headers.get("X-AI-API-Key") or request.headers.get("X-Gemini-API-Key") or data.get("api_key") or data.get("gemini_api_key")
+        custom_provider = request.headers.get("X-AI-Provider") or data.get("ai_provider")
 
         if not message:
             return jsonify({"success": False, "error": "Message is required"}), 400
@@ -295,7 +312,8 @@ def copilot_chat():
             history=history,
             summary_data=summary,
             all_expenses=all_expenses,
-            custom_api_key=custom_key
+            custom_api_key=custom_key,
+            custom_provider=custom_provider
         )
 
         return jsonify({
@@ -308,17 +326,19 @@ def copilot_chat():
 @app.route('/api/config/api-key', methods=['GET', 'POST'])
 def manage_api_key():
     if request.method == 'GET':
-        key = gemini_parser.get_gemini_api_key()
+        key, provider = gemini_parser.get_active_ai_credentials()
         masked = f"{key[:6]}...{key[-4:]}" if len(key) >= 10 else ("Configured" if key else "")
         return jsonify({
             "success": True,
             "configured": bool(key),
-            "masked": masked
+            "masked": masked,
+            "provider": provider
         })
     else:
         try:
             data = request.get_json() or {}
             new_key = str(data.get("api_key", "")).strip()
+            new_provider = str(data.get("provider", "gemini")).strip()
             if not new_key:
                 return jsonify({"success": False, "error": "API key cannot be empty"}), 400
             
@@ -327,7 +347,7 @@ def manage_api_key():
             with open(cfg_file, "w") as f:
                 f.write(new_key)
                 
-            return jsonify({"success": True, "message": "Gemini API key saved successfully!"})
+            return jsonify({"success": True, "message": "AI API key saved successfully!"})
         except Exception as e:
             return jsonify({"success": False, "error": str(e)}), 500
 

@@ -1,6 +1,8 @@
 import os
 import json
 import re
+import base64
+import requests
 from datetime import datetime
 from google import genai
 from google.genai import types
@@ -10,6 +12,8 @@ from dotenv import load_dotenv
 load_dotenv()
 
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
+ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
 
 STANDARD_CATEGORIES = [
     "Food & Dining",
@@ -63,7 +67,6 @@ def normalize_date_string(date_raw):
             return dt.strftime("%Y-%m-%d")
         except Exception:
             pass
-    # Regex matching
     match = re.search(r'(\d{4})[-/](\d{1,2})[-/](\d{1,2})', str(date_raw))
     if match:
         y, m, d = match.groups()
@@ -90,7 +93,6 @@ def extract_text_from_pdf(file_stream_or_path):
         return ""
 
 def extract_text_from_excel(file_stream_or_path):
-    # Try openpyxl first
     try:
         if hasattr(file_stream_or_path, 'seek'):
             file_stream_or_path.seek(0)
@@ -99,143 +101,224 @@ def extract_text_from_excel(file_stream_or_path):
         text_lines = []
         for sheet_name in wb.sheetnames:
             ws = wb[sheet_name]
-            text_lines.append(f"\n--- Sheet: {sheet_name} ---")
+            text_lines.append(f"--- Sheet: {sheet_name} ---")
             for row in ws.iter_rows(values_only=True):
-                if any(row):
-                    row_str = " | ".join(str(c) if c is not None else "" for c in row)
-                    text_lines.append(row_str)
-        if text_lines:
-            return "\n".join(text_lines)
-    except Exception as e:
-        print(f"openpyxl failed: {e}")
-
-    # Fallback to pandas
-    try:
-        if hasattr(file_stream_or_path, 'seek'):
-            file_stream_or_path.seek(0)
-        import pandas as pd
-        excel_data = pd.read_excel(file_stream_or_path, sheet_name=None)
-        text_lines = []
-        for sheet_name, df in excel_data.items():
-            text_lines.append(f"\n--- Sheet: {sheet_name} ---")
-            text_lines.append(df.to_string(index=False))
+                if any(v is not None for v in row):
+                    line = " | ".join(str(v).strip() for v in row if v is not None)
+                    text_lines.append(line)
         return "\n".join(text_lines)
-    except Exception as e2:
-        print(f"pandas failed: {e2}")
-        return ""
+    except Exception as e:
+        print(f"Error reading Excel via openpyxl: {e}")
+        try:
+            if hasattr(file_stream_or_path, 'seek'):
+                file_stream_or_path.seek(0)
+            import pandas as pd
+            xls = pd.ExcelFile(file_stream_or_path)
+            text_lines = []
+            for sheet in xls.sheet_names:
+                df = pd.read_excel(xls, sheet_name=sheet)
+                text_lines.append(f"--- Sheet: {sheet} ---")
+                text_lines.append(df.to_string(index=False))
+            return "\n".join(text_lines)
+        except Exception as e2:
+            print(f"Error reading Excel via pandas: {e2}")
+            return ""
 
 def clean_json_response(raw_text):
-    text = raw_text.strip()
-    if text.startswith("```"):
-        text = re.sub(r"^```(?:json)?\n?", "", text)
-        text = re.sub(r"\n?```$", "", text)
-    
-    # Try matching array first
-    match = re.search(r'\[\s*\{.*\}\s*\]', text, re.DOTALL)
-    if match:
-        try:
-            return json.loads(match.group(0))
-        except Exception:
-            pass
-            
-    # Try matching object with items/transactions key
+    if not raw_text:
+        return []
+    cleaned = raw_text.strip()
+    if cleaned.startswith("```"):
+        cleaned = re.sub(r"^```(?:json)?\n?", "", cleaned)
+        cleaned = re.sub(r"\n?```$", "", cleaned)
+        cleaned = cleaned.strip()
     try:
-        parsed = json.loads(text)
-        if isinstance(parsed, list):
-            return parsed
-        if isinstance(parsed, dict):
-            for key in ["transactions", "expenses", "items", "data"]:
-                if key in parsed and isinstance(parsed[key], list):
-                    return parsed[key]
-            # Single object wrapped in dict
-            return [parsed]
+        return json.loads(cleaned)
     except Exception:
         pass
-        
-def get_gemini_api_key(passed_key=None):
-    if passed_key and str(passed_key).strip():
-        return str(passed_key).strip()
-    
-    for key_name in ["GEMINI_API_KEY", "GOOGLE_API_KEY", "GEMINI_KEY"]:
-        val = os.environ.get(key_name, "")
-        if val and str(val).strip():
-            return str(val).strip()
-            
-    # Check .env
-    if os.path.exists(".env"):
+    array_match = re.search(r'\[.*\]', cleaned, re.DOTALL)
+    if array_match:
         try:
-            with open(".env", "r") as f:
-                for line in f:
-                    if "=" in line:
-                        k, v = line.split("=", 1)
-                        if k.strip() in ["GEMINI_API_KEY", "GOOGLE_API_KEY", "GEMINI_KEY"]:
-                            clean_v = v.strip().strip('"').strip("'")
-                            if clean_v: 
-                                return clean_v
+            return json.loads(array_match.group(0))
         except Exception:
             pass
-            
-    # Check local .api_key file
-    cfg_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".api_key")
-    if os.path.exists(cfg_file):
+    obj_match = re.search(r'\{.*\}', cleaned, re.DOTALL)
+    if obj_match:
         try:
-            with open(cfg_file, "r") as f:
-                val = f.read().strip()
-                if val: 
-                    return val
+            return json.loads(obj_match.group(0))
         except Exception:
             pass
-            
-    return ""
+    return []
 
-def parse_statement(file_obj, filename="", custom_api_key=None):
-    """
-    Parses statement file using the Gemini API client.
-    """
-    ext = os.path.splitext(filename.lower())[1] if filename else ""
-    api_key = get_gemini_api_key(custom_api_key)
+def get_active_ai_credentials(custom_api_key=None, custom_provider=None):
+    key = (custom_api_key or "").strip()
+    provider = (custom_provider or "").strip().lower()
+
+    if not key:
+        key = os.environ.get("GEMINI_API_KEY", "") or os.environ.get("OPENAI_API_KEY", "") or os.environ.get("ANTHROPIC_API_KEY", "")
+        if not key:
+            cfg_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".api_key")
+            if os.path.exists(cfg_file):
+                try:
+                    with open(cfg_file, "r") as f:
+                        key = f.read().strip()
+                except Exception:
+                    pass
+
+    if not provider:
+        if key.startswith("sk-ant-"):
+            provider = "anthropic"
+        elif key.startswith("sk-or-"):
+            provider = "openrouter"
+        elif key.startswith("sk-"):
+            provider = "openai"
+        else:
+            provider = "gemini"
+
+    return key, provider
+
+def execute_ai_completion(prompt, system_instruction=None, image_bytes=None, mime_type=None, custom_api_key=None, custom_provider=None):
+    api_key, provider = get_active_ai_credentials(custom_api_key, custom_provider)
     if not api_key:
-        raise ValueError("Gemini API key is not configured. Please set your key in Settings or environment variables.")
+        raise ValueError("AI API key is not configured. Please set your key in Settings or environment variables.")
 
-    client = genai.Client(api_key=api_key)
-    models_to_try = ["gemini-3.5-flash", "gemini-3.1-flash-lite", "gemini-3.7-flash"]
+    if provider == "openai":
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json"
+        }
+        messages = []
+        if system_instruction:
+            messages.append({"role": "system", "content": system_instruction})
 
+        if image_bytes:
+            b64_img = base64.b64encode(image_bytes).decode('utf-8')
+            img_url = f"data:{mime_type or 'image/png'};base64,{b64_img}"
+            messages.append({
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": prompt},
+                    {"type": "image_url", "image_url": {"url": img_url}}
+                ]
+            })
+        else:
+            messages.append({"role": "user", "content": prompt})
+
+        resp = requests.post(
+            "https://api.openai.com/v1/chat/completions",
+            headers=headers,
+            json={"model": "gpt-4o", "messages": messages, "temperature": 0.2},
+            timeout=60
+        )
+        if resp.status_code != 200:
+            raise ValueError(f"OpenAI API Error ({resp.status_code}): {resp.text}")
+        data = resp.json()
+        return data["choices"][0]["message"]["content"]
+
+    elif provider in ["anthropic", "claude"]:
+        headers = {
+            "x-api-key": api_key,
+            "anthropic-version": "2023-06-01",
+            "content-type": "application/json"
+        }
+        user_content = []
+        if image_bytes:
+            b64_img = base64.b64encode(image_bytes).decode('utf-8')
+            user_content.append({
+                "type": "image",
+                "source": {
+                    "type": "base64",
+                    "media_type": mime_type or "image/png",
+                    "data": b64_img
+                }
+            })
+        user_content.append({"type": "text", "text": prompt})
+
+        payload = {
+            "model": "claude-3-5-sonnet-20241022",
+            "max_tokens": 4096,
+            "messages": [{"role": "user", "content": user_content}]
+        }
+        if system_instruction:
+            payload["system"] = system_instruction
+
+        resp = requests.post(
+            "https://api.anthropic.com/v1/messages",
+            headers=headers,
+            json=payload,
+            timeout=60
+        )
+        if resp.status_code != 200:
+            raise ValueError(f"Anthropic API Error ({resp.status_code}): {resp.text}")
+        data = resp.json()
+        return data["content"][0]["text"]
+
+    elif provider == "openrouter":
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json"
+        }
+        messages = []
+        if system_instruction:
+            messages.append({"role": "system", "content": system_instruction})
+        messages.append({"role": "user", "content": prompt})
+
+        resp = requests.post(
+            "https://openrouter.ai/api/v1/chat/completions",
+            headers=headers,
+            json={"model": "anthropic/claude-3.5-sonnet", "messages": messages},
+            timeout=60
+        )
+        if resp.status_code != 200:
+            raise ValueError(f"OpenRouter API Error ({resp.status_code}): {resp.text}")
+        data = resp.json()
+        return data["choices"][0]["message"]["content"]
+
+    else:
+        client = genai.Client(api_key=api_key)
+        models_to_try = ["gemini-flash-latest", "gemini-flash-lite-latest", "gemini-3.5-flash", "gemini-3.1-flash-lite"]
+        full_prompt = f"{system_instruction}\n\n{prompt}" if system_instruction else prompt
+        last_error = None
+
+        if image_bytes:
+            image_part = types.Part.from_bytes(data=image_bytes, mime_type=mime_type or "image/png")
+            for m in models_to_try:
+                try:
+                    chat = client.chats.create(model=m)
+                    res = chat.send_message([full_prompt, image_part])
+                    if res.text: return res.text
+                except Exception as err:
+                    last_error = err
+                    continue
+        else:
+            for m in models_to_try:
+                try:
+                    chat = client.chats.create(model=m)
+                    res = chat.send_message(full_prompt)
+                    if res.text: return res.text
+                except Exception as err:
+                    last_error = err
+                    continue
+
+        raise ValueError(f"Gemini API Error: {last_error}")
+
+def parse_statement(file_obj, filename="", custom_api_key=None, custom_provider=None):
+    ext = os.path.splitext(filename.lower())[1] if filename else ""
     raw_response_text = ""
-    last_error = None
 
     if ext == ".pdf":
         extracted_text = extract_text_from_pdf(file_obj)
         if not extracted_text or len(extracted_text.strip()) < 10:
             raise ValueError("Could not extract readable text from PDF statement.")
-        
         prompt = f"{EXTRACTION_SYSTEM_PROMPT}\n\nHere is the raw text from the statement:\n\n{extracted_text}"
-        for model_name in models_to_try:
-            try:
-                chat = client.chats.create(model=model_name)
-                res = chat.send_message(prompt)
-                raw_response_text = res.text
-                if raw_response_text:
-                    break
-            except Exception as err:
-                last_error = err
-                continue
+        raw_response_text = execute_ai_completion(prompt, custom_api_key=custom_api_key, custom_provider=custom_provider)
 
     elif ext in [".xlsx", ".xls"]:
         extracted_text = extract_text_from_excel(file_obj)
         if not extracted_text or len(extracted_text.strip()) < 10:
             raise ValueError("Could not extract readable tabular data from the Excel spreadsheet.")
-        
         prompt = f"{EXTRACTION_SYSTEM_PROMPT}\n\nHere is the data from the Excel file ({filename}):\n\n{extracted_text}"
-        for model_name in models_to_try:
-            try:
-                chat = client.chats.create(model=model_name)
-                res = chat.send_message(prompt)
-                raw_response_text = res.text
-                if raw_response_text:
-                    break
-            except Exception as err:
-                last_error = err
-                continue
+        raw_response_text = execute_ai_completion(prompt, custom_api_key=custom_api_key, custom_provider=custom_provider)
 
     elif ext in [".csv", ".txt"]:
         if hasattr(file_obj, 'seek'):
@@ -243,39 +326,21 @@ def parse_statement(file_obj, filename="", custom_api_key=None):
         content = file_obj.read()
         if isinstance(content, bytes):
             content = content.decode('utf-8', errors='ignore')
-        
         prompt = f"{EXTRACTION_SYSTEM_PROMPT}\n\nHere is the statement content ({filename}):\n\n{content}"
-        for model_name in models_to_try:
-            try:
-                chat = client.chats.create(model=model_name)
-                res = chat.send_message(prompt)
-                raw_response_text = res.text
-                if raw_response_text:
-                    break
-            except Exception as err:
-                last_error = err
-                continue
+        raw_response_text = execute_ai_completion(prompt, custom_api_key=custom_api_key, custom_provider=custom_provider)
 
     elif ext in [".png", ".jpg", ".jpeg", ".webp"]:
         if hasattr(file_obj, 'seek'):
             file_obj.seek(0)
         file_bytes = file_obj.read()
         mime_type = "image/png" if ext == ".png" else "image/jpeg" if ext in [".jpg", ".jpeg"] else "image/webp"
-        
-        image_part = types.Part.from_bytes(
-            data=file_bytes,
-            mime_type=mime_type
+        raw_response_text = execute_ai_completion(
+            EXTRACTION_SYSTEM_PROMPT,
+            image_bytes=file_bytes,
+            mime_type=mime_type,
+            custom_api_key=custom_api_key,
+            custom_provider=custom_provider
         )
-        for model_name in models_to_try:
-            try:
-                chat = client.chats.create(model=model_name)
-                res = chat.send_message([EXTRACTION_SYSTEM_PROMPT, image_part])
-                raw_response_text = res.text
-                if raw_response_text:
-                    break
-            except Exception as err:
-                last_error = err
-                continue
     else:
         if hasattr(file_obj, 'seek'):
             file_obj.seek(0)
@@ -283,19 +348,7 @@ def parse_statement(file_obj, filename="", custom_api_key=None):
         if isinstance(content, bytes):
             content = content.decode('utf-8', errors='ignore')
         prompt = f"{EXTRACTION_SYSTEM_PROMPT}\n\nStatement Content:\n\n{content}"
-        for model_name in models_to_try:
-            try:
-                chat = client.chats.create(model=model_name)
-                res = chat.send_message(prompt)
-                raw_response_text = res.text
-                if raw_response_text:
-                    break
-            except Exception as err:
-                last_error = err
-                continue
-
-    if not raw_response_text:
-        raise ValueError(f"Failed to analyze statement with Gemini: {last_error}")
+        raw_response_text = execute_ai_completion(prompt, custom_api_key=custom_api_key, custom_provider=custom_provider)
 
     parsed_transactions = clean_json_response(raw_response_text)
     
@@ -329,14 +382,15 @@ def parse_statement(file_obj, filename="", custom_api_key=None):
     return valid_items
 
 FINANCIAL_INSIGHTS_PROMPT = """
-You are an elite, modern financial advisor and spending analyst.
-Analyze the user's spending data, category breakdown, and monthly budget targets for the active month.
+You are an expert personal financial advisor and wealth coach.
+Analyze the user's spending data, monthly budget, category allocations, and recent expenses.
 
-Provide a high-value, intelligent financial assessment:
-1. "health_score": Integer 0 to 100 assessing overall budget health (100 = optimal, < 60 = high risk/overspending).
-2. "status": One of "Excellent", "Healthy", "Caution", or "Critical".
-3. "headline": A crisp, encouraging, punchy 1-sentence assessment of their financial discipline.
-4. "observations": Array of 3-4 bullet points highlighting specific trends, top spend areas, and anomalies.
+Generate clear, engaging, and actionable financial insights.
+Requirements:
+1. "health_score": An integer from 0 to 100 representing their budget health (100 is best).
+2. "status": A concise status word (e.g. "Excellent", "Healthy", "Caution", "Critical Overspending").
+3. "headline": A punchy 1-sentence executive summary of their current financial performance.
+4. "observations": Array of 2 to 3 data-driven observations highlighting top spending categories, daily burn rate, or notable patterns.
 5. "recommendations": Array of 3 specific, actionable recommendations to reduce expenses and save money.
 6. "alerts": Array of warning strings for categories that exceeded or are nearing their budget limit (empty array if none).
 7. "projected_monthly_savings": A realistic estimated dollar amount ($) they could save by following your tips.
@@ -361,18 +415,7 @@ Return ONLY a valid JSON object matching this schema:
 }
 """
 
-def generate_financial_insights(month_label, summary_data, expenses_data, custom_api_key=None):
-    """
-    Generates intelligent financial insights for the selected month using Gemini.
-    """
-    api_key = get_gemini_api_key(custom_api_key)
-    if not api_key:
-        raise ValueError("Gemini API key is not configured. Please set your key in Settings or environment variables.")
-
-    client = genai.Client(api_key=api_key)
-    models_to_try = ["gemini-3.5-flash", "gemini-3.1-flash-lite", "gemini-3.7-flash"]
-
-    # Prepare financial payload for Gemini
+def generate_financial_insights(month_label, summary_data, expenses_data, custom_api_key=None, custom_provider=None):
     payload = {
         "period": month_label,
         "total_spent": summary_data.get("current_month_spend", 0.0),
@@ -386,54 +429,35 @@ def generate_financial_insights(month_label, summary_data, expenses_data, custom
     }
 
     prompt = f"{FINANCIAL_INSIGHTS_PROMPT}\n\nHere is the financial data for {month_label}:\n\n{json.dumps(payload, indent=2)}"
+    raw_response_text = execute_ai_completion(prompt, custom_api_key=custom_api_key, custom_provider=custom_provider)
 
-    raw_response_text = ""
-    last_error = None
-
-    for model_name in models_to_try:
-        try:
-            chat = client.chats.create(model=model_name)
-            res = chat.send_message(prompt)
-            raw_response_text = res.text
-            if raw_response_text:
-                break
-        except Exception as err:
-            last_error = err
-            continue
-
-    if not raw_response_text:
-        raise ValueError(f"Failed to generate financial insights with Gemini: {last_error}")
-
-    text = raw_response_text.strip()
+    text = str(raw_response_text or '').strip()
     if text.startswith("```"):
         text = re.sub(r"^```(?:json)?\n?", "", text)
         text = re.sub(r"\n?```$", "", text)
 
-    match = re.search(r'\{.*\}', text, re.DOTALL)
-    if match:
-        try:
-            return json.loads(match.group(0))
-        except Exception:
-            pass
-
     try:
-        return json.loads(text)
+        data = json.loads(text)
+        if isinstance(data, dict) and "health_score" in data:
+            return data
     except Exception:
-        return {
-            "health_score": 75,
-            "status": "Healthy",
-            "headline": f"Financial overview generated for {month_label}.",
-            "observations": [
-                f"Total spend for {month_label} is ${summary_data.get('current_month_spend', 0.0):.2f}.",
-                f"Budget utilization is at {summary_data.get('budget_usage_pct', 0.0)}%."
-            ],
-            "recommendations": [
-                "Continue tracking daily expenses to maintain budget limits.",
-                "Review categories nearing 80% utilization."
-            ],
-            "alerts": [],
-            "projected_monthly_savings": 50.00
-        }
+        pass
+
+    return {
+        "health_score": 75,
+        "status": "Healthy",
+        "headline": f"Financial overview generated for {month_label}.",
+        "observations": [
+            f"Total spend for {month_label} is ${summary_data.get('current_month_spend', 0.0):.2f}.",
+            f"Budget utilization is at {summary_data.get('budget_usage_pct', 0.0)}%."
+        ],
+        "recommendations": [
+            "Continue tracking daily expenses to maintain budget limits.",
+            "Review categories nearing 80% utilization."
+        ],
+        "alerts": [],
+        "projected_monthly_savings": 50.00
+    }
 
 COPILOT_SYSTEM_PROMPT = """
 You are "Expenz Copilot", an elite, proactive, and friendly personal AI financial advisor built directly into Expenz.io.
@@ -455,18 +479,7 @@ Your Persona & Rules:
 }
 """
 
-def generate_copilot_response(user_message, history, summary_data, all_expenses, custom_api_key=None):
-    """
-    Answers user queries conversationally using Gemini with full ground-truth financial ledger context.
-    """
-    api_key = get_gemini_api_key(custom_api_key)
-    if not api_key:
-        raise ValueError("Gemini API key is not configured. Please set your key in Settings or environment variables.")
-
-    client = genai.Client(api_key=api_key)
-    models_to_try = ["gemini-3.5-flash", "gemini-3.1-flash-lite", "gemini-3.7-flash"]
-
-    # Build context snapshot
+def generate_copilot_response(user_message, history, summary_data, all_expenses, custom_api_key=None, custom_provider=None):
     period = summary_data.get("active_month_label", "Current Overview")
     total_spent = summary_data.get("current_month_spend", 0.0)
     total_budget = summary_data.get("total_monthly_budget", 0.0)
@@ -474,8 +487,6 @@ def generate_copilot_response(user_message, history, summary_data, all_expenses,
     budget_usage = summary_data.get("budget_usage_pct", 0.0)
     cat_breakdown = summary_data.get("category_breakdown", [])
     budget_comp = summary_data.get("budget_comparison", [])
-    
-    # Send up to 60 recent expenses for deep context
     recent_txns = all_expenses[:60] if all_expenses else []
 
     context_payload = {
@@ -496,9 +507,7 @@ def generate_copilot_response(user_message, history, summary_data, all_expenses,
             role = "User" if msg.get("role") == "user" else "Copilot"
             conversation_text += f"{role}: {msg.get('text', '')}\n"
 
-    prompt = f"""{COPILOT_SYSTEM_PROMPT}
-
-=== USER'S LIVE FINANCIAL LEDGER DATA ===
+    prompt = f"""=== USER'S LIVE FINANCIAL LEDGER DATA ===
 {json.dumps(context_payload, indent=2)}
 
 === CONVERSATION HISTORY ===
@@ -508,22 +517,12 @@ User Question: {user_message}
 
 Return ONLY the JSON response with 'reply' and 'suggested_followups':"""
 
-    raw_response_text = ""
-    last_error = None
-
-    for model_name in models_to_try:
-        try:
-            chat = client.chats.create(model=model_name)
-            res = chat.send_message(prompt)
-            raw_response_text = res.text
-            if raw_response_text:
-                break
-        except Exception as err:
-            last_error = err
-            continue
-
-    if not raw_response_text:
-        raise ValueError(f"Copilot query failed: {last_error}")
+    raw_response_text = execute_ai_completion(
+        prompt=prompt,
+        system_instruction=COPILOT_SYSTEM_PROMPT,
+        custom_api_key=custom_api_key,
+        custom_provider=custom_provider
+    )
 
     text = raw_response_text.strip()
     if text.startswith("```"):

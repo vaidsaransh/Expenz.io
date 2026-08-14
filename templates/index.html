@@ -711,17 +711,17 @@
         </div>
     </div>
 
-    <!-- MODAL 3.5: Gemini API Key Configuration Modal -->
+    <!-- MODAL 3.5: AI Provider & API Key Configuration Modal -->
     <div class="modal-backdrop" id="apiKeyModal">
         <div class="modal-dialog glass-card">
             <div class="modal-header">
                 <div class="modal-title-wrap">
                     <div class="modal-icon-badge" style="background: rgba(99, 102, 241, 0.15); color: var(--accent-primary);">
-                        <i class="fa-solid fa-key"></i>
+                        <i class="fa-solid fa-wand-magic-sparkles"></i>
                     </div>
                     <div>
-                        <h3 class="modal-title">Gemini API Key Configuration</h3>
-                        <p class="modal-subtitle">Configure your Google Gemini API key for statement parsing & insights</p>
+                        <h3 class="modal-title">AI Model & API Key Settings</h3>
+                        <p class="modal-subtitle">Use your own key from Google Gemini, OpenAI, Claude, or OpenRouter</p>
                     </div>
                 </div>
                 <button class="modal-close-btn" id="closeApiKeyModalBtn">&times;</button>
@@ -729,18 +729,35 @@
 
             <form id="apiKeyForm" class="modal-form">
                 <div class="form-group">
-                    <label class="form-label">Google Gemini API Key <span class="required">*</span></label>
-                    <input type="password" id="apiKeyInput" class="modal-input" placeholder="AIzaSy... or AQ.Ab8..." required style="font-family: var(--font-mono); font-size: 13px;">
-                    <span class="modal-subtitle" style="margin-top: 4px;">
-                        <i class="fa-solid fa-shield-halved text-emerald"></i> Stored securely and applied immediately across statement uploads & AI insights.
-                    </span>
+                    <label class="form-label" for="aiProviderSelect">AI Provider / Model <span class="required">*</span></label>
+                    <select id="aiProviderSelect" class="form-control" style="font-size: 13px; font-weight: 600;">
+                        <option value="gemini">Google Gemini (Gemini 2.5 / 2.0 Flash) — Fast & Free Tier</option>
+                        <option value="openai">OpenAI (GPT-4o / GPT-4o-mini)</option>
+                        <option value="anthropic">Anthropic Claude (Claude 3.5 Sonnet / Haiku)</option>
+                        <option value="openrouter">OpenRouter / Any Compatible AI Model</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="apiKeyInput">
+                        <span id="apiKeyLabelText">API Key</span> <span class="required">*</span>
+                    </label>
+                    <input type="password" id="apiKeyInput" class="modal-input" placeholder="AIzaSy... or sk-..." required style="font-family: var(--font-mono); font-size: 13px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 6px;">
+                        <span class="modal-subtitle" style="font-size: 11.5px;">
+                            <i class="fa-solid fa-shield-halved text-emerald"></i> Saved privately in your browser.
+                        </span>
+                        <a href="https://aistudio.google.com/" target="_blank" rel="noopener noreferrer" id="getApiKeyLink" style="font-size: 11.5px; color: var(--accent-primary); text-decoration: underline;">
+                            Get a free Gemini key &rarr;
+                        </a>
+                    </div>
                 </div>
 
                 <div class="modal-actions">
                     <button type="button" class="btn btn-secondary" id="cancelApiKeyModalBtn">Cancel</button>
                     <button type="submit" class="btn btn-primary" id="saveApiKeyBtn">
                         <i class="fa-solid fa-floppy-disk"></i>
-                        <span>Save API Key</span>
+                        <span>Save AI Key</span>
                     </button>
                 </div>
             </form>

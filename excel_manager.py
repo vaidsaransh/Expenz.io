@@ -334,17 +334,34 @@ def delete_expense(expense_id, user_id=None):
             return True
         return False
 
-def clear_all_expenses(user_id=None):
+def clear_all_expenses(month=None, user_id=None):
     with _file_lock:
         wb, fp = get_workbook(user_id)
-        if "Expenses" in wb.sheetnames:
+        if "Expenses" not in wb.sheetnames:
+            return 0
+        ws = wb["Expenses"]
+        
+        # If month is specific (e.g. "2026-08")
+        if month and month.lower() not in ['all', 'auto', '']:
+            deleted_count = 0
+            # Iterate backwards to safely delete matching rows
+            for row_idx in range(ws.max_row, 1, -1):
+                date_cell = ws.cell(row=row_idx, column=2).value
+                if date_cell and str(date_cell).strip().startswith(month):
+                    ws.delete_rows(row_idx, 1)
+                    deleted_count += 1
+            auto_fit_columns(ws)
+            wb.save(fp)
+            return deleted_count
+        else:
+            # Delete all rows across all months
             del wb["Expenses"]
-        ws = wb.create_sheet(title="Expenses", index=0)
-        exp_headers = ["ID", "Date", "Amount ($)", "Category", "Payment Method", "Description", "Created At"]
-        style_header(ws, exp_headers, fill_color="0F172A")
-        auto_fit_columns(ws)
-        wb.save(fp)
-        return True
+            ws = wb.create_sheet(title="Expenses", index=0)
+            exp_headers = ["ID", "Date", "Amount ($)", "Category", "Payment Method", "Description", "Created At"]
+            style_header(ws, exp_headers, fill_color="0F172A")
+            auto_fit_columns(ws)
+            wb.save(fp)
+            return -1
 
 def get_summary_stats(month=None, user_id=None):
     expenses = get_expenses(user_id=user_id)
