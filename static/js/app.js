@@ -1816,11 +1816,25 @@ function openWorkspaceModal() {
     if (modal) modal.classList.add('active');
 }
 
+function updateSyncCodeUI() {
+    const uid = getUserId();
+    const desktopLabel = document.getElementById('desktopActiveSyncCodeLabel');
+    if (desktopLabel) {
+        desktopLabel.textContent = uid.length > 12 ? `${uid.substring(0, 10)}...` : uid;
+    }
+}
+
 function initWorkspaceSync() {
+    updateSyncCodeUI();
+
     // Update all export links
     document.querySelectorAll('a[href^="/download-excel"]').forEach(a => {
         a.href = `/download-excel?user_id=${encodeURIComponent(getUserId())}`;
     });
+
+    // Desktop navbar sync triggers
+    document.getElementById('excelStatusPill')?.addEventListener('click', openWorkspaceModal);
+    document.getElementById('desktopSyncNavBtn')?.addEventListener('click', openWorkspaceModal);
 
     const copyBtn = document.getElementById('copySyncCodeBtn');
     copyBtn?.addEventListener('click', () => {
@@ -1845,6 +1859,7 @@ function initWorkspaceSync() {
             return;
         }
         setUserId(code);
+        updateSyncCodeUI();
         showToast(`Connected to workspace '${code}'!`, 'success');
         document.getElementById('workspaceModal')?.classList.remove('active');
         if (connectInput) connectInput.value = '';

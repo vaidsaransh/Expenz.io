@@ -53,10 +53,10 @@
             </div>
 
             <div class="nav-center">
-                <div class="excel-status-pill" id="excelStatusPill" title="All transactions sync directly to expenses_data.xlsx">
+                <div class="excel-status-pill clickable-pill" id="excelStatusPill" title="Click to view or link your Cross-Device Sync Code">
                     <span class="pulse-dot"></span>
-                    <i class="fa-solid fa-file-excel text-emerald"></i>
-                    <span class="status-text">Synced with <strong>expenses_data.xlsx</strong></span>
+                    <i class="fa-solid fa-arrows-split-up-and-left text-cyan"></i>
+                    <span class="status-text">Sync: <strong id="desktopActiveSyncCodeLabel">Active</strong></span>
                 </div>
             </div>
 
@@ -76,6 +76,10 @@
                 <button class="btn btn-secondary btn-icon desktop-only" id="openBudgetsModalBtn">
                     <i class="fa-solid fa-sliders"></i>
                     <span>Budgets</span>
+                </button>
+                <button class="btn btn-secondary btn-icon desktop-only" id="desktopSyncNavBtn" title="Link iPhone & Mac via Cross-Device Sync Code">
+                    <i class="fa-solid fa-arrows-split-up-and-left text-cyan"></i>
+                    <span>Sync</span>
                 </button>
                 <button class="btn btn-secondary btn-icon nav-key-btn" id="openApiKeyModalBtn" title="Configure Gemini AI API Key">
                     <i class="fa-solid fa-key text-accent"></i>
