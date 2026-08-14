@@ -61,23 +61,23 @@
             </div>
 
             <div class="nav-right">
-                <button class="btn btn-ai-sparkle btn-icon" id="openStatementModalBtn" title="Upload Bank / Amex Statements for AI Parsing">
+                <button class="btn btn-ai-sparkle btn-icon desktop-only" id="openStatementModalBtn" title="Upload Bank / Amex Statements for AI Parsing">
                     <i class="fa-solid fa-wand-magic-sparkles"></i>
                     <span>AI Import Statement</span>
                 </button>
-                <a href="/download-excel" class="btn btn-secondary btn-icon" id="downloadExcelBtn" title="Download Excel Spreadsheet">
+                <a href="/download-excel" class="btn btn-secondary btn-icon desktop-only" id="downloadExcelBtn" title="Download Excel Spreadsheet">
                     <i class="fa-solid fa-download"></i>
                     <span>Export Excel</span>
                 </a>
-                <button class="btn btn-secondary btn-icon" id="openBudgetsModalBtn">
+                <button class="btn btn-secondary btn-icon desktop-only" id="openBudgetsModalBtn">
                     <i class="fa-solid fa-sliders"></i>
                     <span>Budgets</span>
                 </button>
-                <button class="btn btn-secondary btn-icon" id="openApiKeyModalBtn" title="Configure Gemini AI API Key">
+                <button class="btn btn-secondary btn-icon nav-key-btn" id="openApiKeyModalBtn" title="Configure Gemini AI API Key">
                     <i class="fa-solid fa-key text-accent"></i>
-                    <span id="apiKeyBtnText">AI Key</span>
+                    <span class="desktop-only" id="apiKeyBtnText">AI Key</span>
                 </button>
-                <button class="btn btn-primary btn-icon glow-button" id="openAddModalBtn">
+                <button class="btn btn-primary btn-icon glow-button desktop-only" id="openAddModalBtn">
                     <i class="fa-solid fa-plus"></i>
                     <span>Log Expense <kbd class="kbd-shortcut">N</kbd></span>
                 </button>
@@ -100,21 +100,23 @@
                 </div>
             </div>
             <div class="controls-right">
-                <div class="month-selector-wrap">
-                    <i class="fa-solid fa-calendar-days text-accent"></i>
-                    <label for="dashboardMonthSelector" class="selector-label">Month:</label>
-                    <select id="dashboardMonthSelector" class="month-dropdown">
-                        <option value="auto">Auto (Latest Active)</option>
-                    </select>
+                <div class="selectors-row">
+                    <div class="month-selector-wrap">
+                        <i class="fa-solid fa-calendar-days text-accent"></i>
+                        <label for="dashboardMonthSelector" class="selector-label">Month:</label>
+                        <select id="dashboardMonthSelector" class="month-dropdown">
+                            <option value="auto">Auto (Latest Active)</option>
+                        </select>
+                    </div>
+                    <div class="month-selector-wrap">
+                        <i class="fa-solid fa-layer-group text-secondary"></i>
+                        <label for="dashboardCategoryFilter" class="selector-label">Category:</label>
+                        <select id="dashboardCategoryFilter" class="month-dropdown">
+                            <option value="all">All Categories</option>
+                        </select>
+                    </div>
                 </div>
-                <div class="month-selector-wrap">
-                    <i class="fa-solid fa-layer-group text-secondary"></i>
-                    <label for="dashboardCategoryFilter" class="selector-label">Category:</label>
-                    <select id="dashboardCategoryFilter" class="month-dropdown">
-                        <option value="all">All Categories</option>
-                    </select>
-                </div>
-                <button class="btn btn-ai-sparkle btn-icon" id="openInsightsModalBtn" title="Generate AI Insights for selected month">
+                <button class="btn btn-ai-sparkle btn-icon insights-trigger-btn" id="openInsightsModalBtn" title="Generate AI Insights for selected month">
                     <i class="fa-solid fa-brain"></i>
                     <span>AI Insights</span>
                 </button>

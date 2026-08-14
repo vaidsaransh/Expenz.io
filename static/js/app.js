@@ -1415,15 +1415,17 @@ async function checkApiKeyStatus() {
 function updateApiKeyBadge(isConfigured) {
     const btnText = document.getElementById('apiKeyBtnText');
     const btn = document.getElementById('openApiKeyModalBtn');
-    if (btnText && btn) {
+    if (btn) {
         if (isConfigured) {
-            btnText.textContent = 'AI Key ✓';
+            if (btnText) btnText.textContent = 'AI Key ✓';
             btn.style.borderColor = 'rgba(16, 185, 129, 0.4)';
             btn.style.color = 'var(--accent-emerald)';
+            btn.title = 'Gemini AI Key Configured ✓';
         } else {
-            btnText.textContent = 'Set AI Key';
+            if (btnText) btnText.textContent = 'Set AI Key';
             btn.style.borderColor = 'rgba(244, 63, 94, 0.4)';
             btn.style.color = 'var(--accent-rose)';
+            btn.title = 'Configure Gemini AI Key';
         }
     }
 }
