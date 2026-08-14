@@ -2014,7 +2014,12 @@ function initMobileExperience() {
 function openWorkspaceModal() {
     const modal = document.getElementById('workspaceModal');
     const input = document.getElementById('currentSyncCodeInput');
-    if (input) input.value = getUserId();
+    const uid = getUserId();
+    if (input) input.value = uid;
+    const tgBtn = document.getElementById('telegramDeepLinkBtn');
+    if (tgBtn) {
+        tgBtn.href = `https://t.me/expenzai_bot?start=${encodeURIComponent(uid)}`;
+    }
     if (modal) modal.classList.add('active');
 }
 

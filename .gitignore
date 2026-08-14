@@ -5,6 +5,7 @@ __pycache__/
 .env
 .api_key
 .telegram_token
+.telegram_users.json
 .DS_Store
 .venv/
 env/

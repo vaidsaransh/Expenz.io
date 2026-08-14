@@ -318,5 +318,38 @@ class TestExpenseTracker(unittest.TestCase):
         data = res.get_json()
         self.assertTrue(data["ok"])
 
+    def test_17_telegram_link_workspace(self):
+        test_chat_id = 777777
+        target_uid = "usr_fy4w6q1y_test"
+
+        # 1. Send /link command
+        res = self.client.post('/api/telegram/webhook', json={
+            "message": {
+                "chat": {"id": test_chat_id},
+                "text": f"/link {target_uid}"
+            }
+        })
+        self.assertEqual(res.status_code, 200)
+        data = res.get_json()
+        self.assertEqual(data["result"]["status"], "workspace_linked")
+        self.assertEqual(data["result"]["user_id"], target_uid)
+
+        # 2. Log an expense without specifying user_id param
+        exp_res = self.client.post('/api/telegram/webhook', json={
+            "message": {
+                "chat": {"id": test_chat_id},
+                "text": "Spent $19.99 for Coffee on Amex"
+            }
+        })
+        self.assertEqual(exp_res.status_code, 200)
+
+        # 3. Verify it was written to target_uid's ledger
+        list_res = self.client.get(f'/api/expenses?user_id={target_uid}')
+        list_data = list_res.get_json()
+        self.assertGreaterEqual(list_data["pagination"]["total_items"], 1)
+
+        # Clean up
+        self.client.post(f'/api/expenses/clear-all?user_id={target_uid}')
+
 if __name__ == '__main__':
     unittest.main()

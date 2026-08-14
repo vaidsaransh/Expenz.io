@@ -13,10 +13,47 @@ import gemini_parser
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 TELEGRAM_TOKEN_FILE = os.path.join(BASE_DIR, ".telegram_token")
+TELEGRAM_USERS_FILE = os.path.join(BASE_DIR, ".telegram_users.json")
 RAILWAY_URL = "https://web-production-9ad68.up.railway.app"
 
 # In-memory review cache for multi-step interactive confirmations: { chat_id: { expense_dict, timestamp } }
 PENDING_REVIEWS = {}
+
+def get_user_id_for_chat(chat_id):
+    """Retrieves synced workspace/user ID for given Telegram chat."""
+    if not chat_id:
+        return 'default'
+    try:
+        if os.path.exists(TELEGRAM_USERS_FILE):
+            with open(TELEGRAM_USERS_FILE, "r") as f:
+                data = json.load(f)
+                return data.get(str(chat_id), 'default')
+    except Exception:
+        pass
+    return 'default'
+
+def set_user_id_for_chat(chat_id, user_id):
+    """Binds Telegram chat ID to a workspace / sync code."""
+    if not chat_id:
+        return 'default'
+    clean_id = "".join(c for c in str(user_id or '') if c.isalnum() or c in ("-", "_")).strip()
+    clean_id = clean_id[:64] or 'default'
+    
+    data = {}
+    try:
+        if os.path.exists(TELEGRAM_USERS_FILE):
+            with open(TELEGRAM_USERS_FILE, "r") as f:
+                data = json.load(f)
+    except Exception:
+        data = {}
+        
+    data[str(chat_id)] = clean_id
+    try:
+        with open(TELEGRAM_USERS_FILE, "w") as f:
+            json.dump(data, f, indent=2)
+    except Exception as e:
+        print("Failed to save .telegram_users.json:", e)
+    return clean_id
 
 def get_telegram_bot_token():
     """Get stored Telegram Bot Token from environment or config file."""
@@ -213,6 +250,8 @@ def process_telegram_update(update_json, user_id=None):
         chat_id = cb["message"]["chat"]["id"]
         msg_id = cb["message"]["message_id"]
         data = cb.get("data", "")
+        
+        user_id = user_id or get_user_id_for_chat(chat_id)
 
         answer_callback_query(cb_id)
 
@@ -241,8 +280,61 @@ def process_telegram_update(update_json, user_id=None):
     text = (message.get("text") or message.get("caption") or "").strip()
     photo_list = message.get("photo")
 
-    # 2. Direct Bot Commands
-    if text.startswith("/start") or text.startswith("/help"):
+    # Resolve active workspace for this Telegram chat
+    user_id = user_id or get_user_id_for_chat(chat_id)
+
+    # 2. Workspace Linking Command: /link or /sync
+    if text.startswith("/link") or text.startswith("/sync"):
+        parts = text.split(maxsplit=1)
+        if len(parts) > 1 and parts[1].strip():
+            new_code = parts[1].strip()
+            bound_id = set_user_id_for_chat(chat_id, new_code)
+            
+            fp = excel_manager.get_excel_file_path(bound_id)
+            excel_manager.init_excel(fp)
+            
+            summary = excel_manager.get_summary_stats(user_id=bound_id)
+            msg = (
+                f"🔗 *Workspace Linked Successfully!*\n\n"
+                f"Your Telegram bot is now synced to workspace: *`{bound_id}`*\n\n"
+                f"📱 *Cross-Device Active:* All expenses, receipt photos, and Copilot chats are now linked directly to the same ledger as your iPhone and laptop.\n\n"
+                f"📊 *{summary.get('active_month_label', 'Month')} Total:* `${summary.get('current_month_spend', 0.0):,.2f}`\n"
+                f"🎯 *Monthly Budget:* `${summary.get('total_monthly_budget', 0.0):,.2f}`"
+            )
+            keyboard = {
+                "inline_keyboard": [
+                    [
+                        {"text": "📊 Month Summary", "callback_data": "cmd_summary"},
+                        {"text": "🧾 Recent Expenses", "callback_data": "cmd_recent"}
+                    ],
+                    [
+                        {"text": "🌐 Open Web App", "url": f"{RAILWAY_URL}"}
+                    ]
+                ]
+            }
+            send_telegram_message(chat_id, msg, reply_markup=keyboard)
+            return {"status": "workspace_linked", "user_id": bound_id}
+        else:
+            current_id = get_user_id_for_chat(chat_id)
+            msg = (
+                f"🔗 *Current Synced Workspace:* *`{current_id}`*\n\n"
+                f"To link your Telegram bot to your iPhone & laptop sync code, send:\n"
+                f"• `/link <your-sync-code>` (e.g. `/link usr_fy4w6q1y`)\n\n"
+                f"You can find your sync code in the web app under the **Sync** button."
+            )
+            send_telegram_message(chat_id, msg)
+            return {"status": "link_info_sent"}
+
+    # 3. Direct Bot Commands
+    if text.startswith("/start"):
+        parts = text.split(maxsplit=1)
+        if len(parts) > 1 and parts[1].strip():
+            new_code = parts[1].strip()
+            user_id = set_user_id_for_chat(chat_id, new_code)
+            fp = excel_manager.get_excel_file_path(user_id)
+            excel_manager.init_excel(fp)
+        return handle_start_command(chat_id, user_id=user_id)
+    elif text.startswith("/help"):
         return handle_start_command(chat_id, user_id=user_id)
     elif text.startswith("/summary") or text.startswith("/overview"):
         return handle_summary_command(chat_id, user_id=user_id)
@@ -585,15 +677,18 @@ def execute_confirm_pending_expense(chat_id, message_id, user_id=None):
     return {"status": "pending_confirmed"}
 
 def handle_start_command(chat_id, user_id=None):
+    user_id = user_id or get_user_id_for_chat(chat_id)
     summary = excel_manager.get_summary_stats(user_id=user_id)
     month_label = summary.get("active_month_label", "Current Month")
     spend = summary.get("current_month_spend", 0.0)
     budget = summary.get("total_monthly_budget", 0.0)
     remaining = summary.get("remaining_budget", 0.0)
 
+    workspace_badge = f"🔗 *Synced Workspace:* `{user_id}`" if user_id and user_id != 'default' else "🔗 *Workspace:* `Default Master Ledger`"
+
     msg = (
-        f"👋 *Welcome to Expenz AI on Telegram!*\n\n"
-        f"I am your personal financial assistant with direct live sync to your Excel ledger at `{RAILWAY_URL}`.\n\n"
+        f"👋 *Welcome to Expenz AI on Telegram!*\n"
+        f"{workspace_badge}\n\n"
         f"📊 *{month_label} Overview:*\n"
         f"• Total Spent: *${spend:,.2f}*\n"
         f"• Monthly Budget: *${budget:,.2f}*\n"
@@ -606,10 +701,8 @@ def handle_start_command(chat_id, user_id=None):
         f"3️⃣ *Edit or Delete Expenses via Text:*\n"
         f"   _\"Change the last Walmart expense to $15\"_\n"
         f"   _\"Delete expense #8\"_\n"
-        f"4️⃣ *Ask Financial Questions & Insights:*\n"
-        f"   _\"What is my biggest spend?\"_\n"
-        f"   _\"Can I afford a $150 dinner this week?\"_\n\n"
-        f"Commands: /summary, /budget, /insights, /recent"
+        f"4️⃣ *Cross-Device Sync:* Type `/link <sync_code>` to sync with iPhone/Mac!\n\n"
+        f"Commands: /summary, /budget, /insights, /recent, /link"
     )
 
     keyboard = {
