@@ -1,10 +1,21 @@
 import unittest
 import json
 import os
+import shutil
 import excel_manager
 from app import app
 
 class TestExpenseTracker(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        if os.path.exists(excel_manager.EXCEL_FILE):
+            shutil.copyfile(excel_manager.EXCEL_FILE, excel_manager.EXCEL_FILE + ".test_bak")
+
+    @classmethod
+    def tearDownClass(cls):
+        if os.path.exists(excel_manager.EXCEL_FILE + ".test_bak"):
+            shutil.move(excel_manager.EXCEL_FILE + ".test_bak", excel_manager.EXCEL_FILE)
+
     def setUp(self):
         self.client = app.test_client()
         excel_manager.init_excel()

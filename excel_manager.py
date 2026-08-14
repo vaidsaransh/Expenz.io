@@ -87,6 +87,15 @@ def init_excel(target_file=None):
         if os.path.exists(target_file):
             return target_file
 
+        # If creating a user workspace and master template exists, seed from master
+        if target_file != EXCEL_FILE and os.path.exists(EXCEL_FILE):
+            try:
+                import shutil
+                shutil.copyfile(EXCEL_FILE, target_file)
+                return target_file
+            except Exception:
+                pass
+
         wb = openpyxl.Workbook()
         
         # 1. Expenses Sheet

@@ -39,7 +39,7 @@ const state = {
 function getUserId() {
     let uid = localStorage.getItem('expenz_user_id');
     if (!uid) {
-        uid = 'usr_' + Math.random().toString(36).substring(2, 10);
+        uid = 'default';
         localStorage.setItem('expenz_user_id', uid);
     }
     return uid;
@@ -1909,7 +1909,7 @@ function updateSyncCodeUI() {
     const uid = getUserId();
     const desktopLabel = document.getElementById('desktopActiveSyncCodeLabel');
     if (desktopLabel) {
-        desktopLabel.textContent = uid.length > 12 ? `${uid.substring(0, 10)}...` : uid;
+        desktopLabel.textContent = uid === 'default' ? 'Live Excel' : (uid.length > 12 ? `${uid.substring(0, 10)}...` : uid);
     }
 }
 
