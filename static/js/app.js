@@ -9,6 +9,7 @@ const state = {
     budgets: {},
     summary: null,
     expenses: [],
+    selectedMonth: 'auto',
     pagination: {
         page: 1,
         limit: 8,
@@ -18,7 +19,8 @@ const state = {
     filters: {
         category: 'all',
         payment_method: 'all',
-        search: ''
+        search: '',
+        month: 'auto'
     },
     charts: {
         timeline: null,
@@ -101,6 +103,15 @@ function initEventListeners() {
     document.getElementById('reUploadStatementBtn')?.addEventListener('click', showUploadStep);
 
     initDropzoneEvents();
+
+    // Dashboard Month Selector
+    document.getElementById('dashboardMonthSelector')?.addEventListener('change', (e) => {
+        state.selectedMonth = e.target.value;
+        state.filters.month = e.target.value;
+        state.pagination.page = 1;
+        fetchSummary();
+        fetchExpenses();
+    });
 
     // Reset / Clear All Expenses Action
     document.getElementById('clearAllExpensesBtn')?.addEventListener('click', handleClearAllExpenses);
@@ -427,6 +438,15 @@ async function handleBulkImportConfirm() {
             showToast(`🎉 Successfully imported ${data.count} expenses into Excel!`, 'success');
             closeStatementModal();
             
+            // Auto-switch to imported month if available
+            if (data.imported_month) {
+                state.selectedMonth = data.imported_month;
+                state.filters.month = data.imported_month;
+            } else {
+                state.selectedMonth = 'auto';
+                state.filters.month = 'auto';
+            }
+
             // Reset filters to show new records immediately
             state.filters.category = 'all';
             state.filters.payment_method = 'all';
@@ -505,12 +525,28 @@ function populateCategoryDropdowns(categories) {
 
 async function fetchSummary() {
     try {
-        const res = await fetch('/api/summary');
+        const monthParam = state.selectedMonth || 'auto';
+        const res = await fetch(`/api/summary?month=${encodeURIComponent(monthParam)}`);
         const data = await res.json();
         if (data.success) {
             state.summary = data.data;
             updateDashboardMetrics(data.data);
             renderCharts(data.data);
+
+            // Populate / sync month dropdown
+            const monthSelect = document.getElementById('dashboardMonthSelector');
+            if (monthSelect && data.data.available_months) {
+                const currentVal = state.selectedMonth || data.data.active_month;
+                monthSelect.innerHTML = data.data.available_months.map(m => 
+                    `<option value="${m.value}" ${m.value === currentVal ? 'selected' : ''}>${m.label}</option>`
+                ).join('');
+                monthSelect.innerHTML += `<option value="all" ${currentVal === 'all' ? 'selected' : ''}>All Time Overview</option>`;
+            }
+
+            const activeLabelEl = document.getElementById('activePeriodLabel');
+            if (activeLabelEl) {
+                activeLabelEl.textContent = `${data.data.active_month_label} Overview`;
+            }
         }
     } catch (err) {
         console.error('Failed to fetch summary:', err);
@@ -524,7 +560,8 @@ async function fetchExpenses() {
             limit: state.pagination.limit,
             category: state.filters.category,
             payment_method: state.filters.payment_method,
-            search: state.filters.search
+            search: state.filters.search,
+            month: state.selectedMonth || 'auto'
         });
 
         const res = await fetch(`/api/expenses?${params.toString()}`);
@@ -551,16 +588,19 @@ function updateDashboardMetrics(summary) {
     const kpiMonthSpend = document.getElementById('kpiMonthSpend');
     if (kpiMonthSpend) kpiMonthSpend.textContent = formatCurrency(summary.current_month_spend);
 
+    const kpiMonthTitle = document.getElementById('kpiMonthSpendTitle');
+    if (kpiMonthTitle) kpiMonthTitle.textContent = `Spent (${summary.active_month_label})`;
+
     const kpiGrowthBadge = document.getElementById('kpiGrowthBadge');
     const kpiGrowthText = document.getElementById('kpiGrowthText');
     if (kpiGrowthBadge && kpiGrowthText) {
         const growth = summary.mom_growth_pct;
-        kpiGrowthText.textContent = `${growth >= 0 ? '+' : ''}${growth}% vs last mo`;
+        kpiGrowthText.textContent = `${growth >= 0 ? '+' : ''}${growth}% vs prev mo`;
         kpiGrowthBadge.className = `badge ${growth > 10 ? 'badge-warning' : 'badge-success'}`;
     }
 
     const kpiTxnCount = document.getElementById('kpiTxnCount');
-    if (kpiTxnCount) kpiTxnCount.textContent = `${summary.current_month_count} entries this month`;
+    if (kpiTxnCount) kpiTxnCount.textContent = `${summary.current_month_count} entries in ${summary.active_month_label}`;
 
     const kpiTotalBudget = document.getElementById('kpiTotalBudget');
     if (kpiTotalBudget) kpiTotalBudget.textContent = formatCurrency(summary.total_monthly_budget);

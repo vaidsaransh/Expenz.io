@@ -35,8 +35,11 @@
                         <i class="fa-solid fa-wallet"></i>
                     </div>
                     <div class="brand-text">
-                        <span class="brand-name">Expenz<span class="brand-dot">.io</span></span>
-                        <span class="brand-sub">Excel-Synced Budget Tracker</span>
+                        <div class="brand-title-row">
+                            <span class="brand-name">Expenz<span class="brand-dot">.io</span></span>
+                            <span class="creator-badge" title="Created by Saransh Vaid"><i class="fa-solid fa-code text-accent"></i> by Saransh Vaid</span>
+                        </div>
+                        <span class="brand-sub">Excel-Synced AI Budget Tracker</span>
                     </div>
                 </div>
             </div>
@@ -71,6 +74,29 @@
                 </button>
             </div>
         </header>
+
+        <!-- Dashboard Filter & Period Controls Bar -->
+        <section class="dashboard-controls-bar glass-card">
+            <div class="controls-left">
+                <div class="section-badge">
+                    <i class="fa-solid fa-chart-pie text-accent"></i>
+                    <span>Financial Dashboard</span>
+                </div>
+                <div class="active-period-tag" id="activePeriodTag">
+                    <i class="fa-solid fa-calendar-check text-emerald"></i>
+                    <span id="activePeriodLabel">Current Overview</span>
+                </div>
+            </div>
+            <div class="controls-right">
+                <div class="month-selector-wrap">
+                    <i class="fa-solid fa-calendar-days text-accent"></i>
+                    <label for="dashboardMonthSelector" class="selector-label">Filter Month:</label>
+                    <select id="dashboardMonthSelector" class="month-dropdown">
+                        <option value="auto">Auto (Latest Active)</option>
+                    </select>
+                </div>
+            </div>
+        </section>
 
         <!-- Quick Log Strip Bar -->
         <section class="quick-log-strip glass-card" id="quickLogSection">
@@ -116,7 +142,7 @@
             <!-- Metric 1: Monthly Spent -->
             <div class="metric-card glass-card">
                 <div class="metric-header">
-                    <span class="metric-title">Spent This Month</span>
+                    <span class="metric-title" id="kpiMonthSpendTitle">Spent (This Month)</span>
                     <div class="metric-icon-wrap icon-purple">
                         <i class="fa-solid fa-receipt"></i>
                     </div>
@@ -135,7 +161,7 @@
             <!-- Metric 2: Monthly Budget -->
             <div class="metric-card glass-card">
                 <div class="metric-header">
-                    <span class="metric-title">Monthly Budget</span>
+                    <span class="metric-title" id="kpiBudgetTitle">Monthly Budget</span>
                     <div class="metric-icon-wrap icon-blue">
                         <i class="fa-solid fa-bullseye"></i>
                     </div>
@@ -352,6 +378,20 @@
                 </div>
             </div>
         </section>
+
+        <!-- Modern Branded Footer -->
+        <footer class="app-footer glass-card">
+            <div class="footer-left">
+                <span class="brand-name-sm">Expenz<span class="brand-dot">.io</span></span>
+                <span class="footer-divider">•</span>
+                <span class="footer-credits">Designed & Built with <i class="fa-solid fa-heart text-rose heart-beat"></i> by <strong>Saransh Vaid</strong></span>
+            </div>
+            <div class="footer-right">
+                <span class="badge-tech"><i class="fa-brands fa-python text-blue"></i> Flask</span>
+                <span class="badge-tech"><i class="fa-solid fa-file-excel text-emerald"></i> Excel Persistence</span>
+                <span class="badge-tech"><i class="fa-solid fa-wand-magic-sparkles text-accent"></i> Gemini AI</span>
+            </div>
+        </footer>
     </div>
 
     <!-- MODAL 1: Add / Edit Expense Modal -->

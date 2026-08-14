@@ -16,7 +16,8 @@ def index():
 @app.route('/api/summary', methods=['GET'])
 def get_summary():
     try:
-        stats = excel_manager.get_summary_stats()
+        month = request.args.get('month')
+        stats = excel_manager.get_summary_stats(month=month)
         return jsonify({"success": True, "data": stats})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
@@ -24,6 +25,7 @@ def get_summary():
 @app.route('/api/expenses', methods=['GET'])
 def get_expenses():
     try:
+        month = request.args.get('month')
         start_date = request.args.get('start_date')
         end_date = request.args.get('end_date')
         category = request.args.get('category')
@@ -37,7 +39,8 @@ def get_expenses():
             end_date=end_date,
             category=category,
             search=search,
-            payment_method=payment_method
+            payment_method=payment_method,
+            month=month
         )
         
         total_items = len(all_expenses)
@@ -96,10 +99,12 @@ def create_bulk_expenses():
             return jsonify({"success": False, "error": "No items provided"}), 400
 
         added_records = excel_manager.bulk_add_expenses(items)
+        imported_month = added_records[0]["date"][:7] if added_records and len(added_records[0].get("date", "")) >= 7 else None
         return jsonify({
             "success": True,
             "count": len(added_records),
             "data": added_records,
+            "imported_month": imported_month,
             "message": f"Successfully imported {len(added_records)} expenses into Excel!"
         })
     except Exception as e:
@@ -187,11 +192,13 @@ def upload_statement():
 
         # Parse with Gemini LLM
         parsed_transactions = gemini_parser.parse_statement(file, filename=file.filename)
+        detected_month = parsed_transactions[0]["date"][:7] if parsed_transactions and len(parsed_transactions[0].get("date", "")) >= 7 else None
         
         return jsonify({
             "success": True,
             "filename": file.filename,
             "count": len(parsed_transactions),
+            "detected_month": detected_month,
             "transactions": parsed_transactions
         })
     except Exception as e:

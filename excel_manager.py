@@ -166,7 +166,7 @@ def save_budgets(new_budgets):
         wb.save(EXCEL_FILE)
         return True
 
-def get_expenses(start_date=None, end_date=None, category=None, search=None, payment_method=None):
+def get_expenses(start_date=None, end_date=None, category=None, search=None, payment_method=None, month=None):
     with _file_lock:
         wb = get_workbook()
         ws = wb["Expenses"]
@@ -191,6 +191,8 @@ def get_expenses(start_date=None, end_date=None, category=None, search=None, pay
             created_val = str(row[6]) if len(row) > 6 and row[6] is not None else ""
             
             # Filtering
+            if month and month.lower() != 'all' and not date_val.startswith(month):
+                continue
             if category and category.lower() != 'all' and cat_val.lower() != category.lower():
                 continue
             if payment_method and payment_method.lower() != 'all' and pay_val.lower() != payment_method.lower():
@@ -343,39 +345,80 @@ def clear_all_expenses():
         wb.save(EXCEL_FILE)
         return True
 
-def get_summary_stats():
+def get_summary_stats(month=None):
     expenses = get_expenses()
     budgets = get_budgets()
     categories_list = get_categories()
     cat_meta = {c["name"]: c for c in categories_list}
     
     now = datetime.now()
-    current_month_prefix = now.strftime("%Y-%m")
+    current_calendar_month = now.strftime("%Y-%m")
     
-    # Calculate previous month prefix
-    first_day_curr = now.replace(day=1)
-    last_day_prev = first_day_curr - timedelta(days=1)
-    prev_month_prefix = last_day_prev.strftime("%Y-%m")
-    
+    # 1. Discover all months present in expenses
+    unique_months = sorted(list(set(e["date"][:7] for e in expenses if len(e.get("date", "")) >= 7)), reverse=True)
+    if current_calendar_month not in unique_months:
+        unique_months.insert(0, current_calendar_month)
+
+    # 2. Determine target active month
+    if month and month.lower() != 'auto' and month.lower() != 'all':
+        active_month = month
+    else:
+        # Auto-detection:
+        # Check if current calendar month has expenses
+        curr_has_expenses = any(e["date"].startswith(current_calendar_month) for e in expenses)
+        if curr_has_expenses:
+            active_month = current_calendar_month
+        elif expenses:
+            active_month = expenses[0]["date"][:7]
+        else:
+            active_month = current_calendar_month
+
+    # 3. Calculate previous month prefix relative to active_month
+    try:
+        y, m = map(int, active_month.split('-'))
+        dt_active = datetime(y, m, 1)
+        dt_prev = (dt_active - timedelta(days=1)).replace(day=1)
+        prev_month_prefix = dt_prev.strftime("%Y-%m")
+    except Exception:
+        prev_month_prefix = ""
+
+    # 4. Filter expenses
     total_all_time = sum(e["amount"] for e in expenses)
-    current_month_expenses = [e for e in expenses if e["date"].startswith(current_month_prefix)]
-    prev_month_expenses = [e for e in expenses if e["date"].startswith(prev_month_prefix)]
+    if month and month.lower() == 'all':
+        month_expenses = expenses
+        prev_month_expenses = []
+        month_display_title = "All Time"
+    else:
+        month_expenses = [e for e in expenses if e["date"].startswith(active_month)]
+        prev_month_expenses = [e for e in expenses if e["date"].startswith(prev_month_prefix)]
+        try:
+            month_display_title = datetime.strptime(active_month, "%Y-%m").strftime("%B %Y")
+        except Exception:
+            month_display_title = active_month
     
-    current_month_spend = sum(e["amount"] for e in current_month_expenses)
+    month_spend = sum(e["amount"] for e in month_expenses)
     prev_month_spend = sum(e["amount"] for e in prev_month_expenses)
     
     # Total monthly budget
     total_monthly_budget = sum(budgets.values())
-    remaining_budget = max(0.0, total_monthly_budget - current_month_spend)
-    budget_usage_pct = round((current_month_spend / total_monthly_budget * 100), 1) if total_monthly_budget > 0 else 0
+    remaining_budget = max(0.0, total_monthly_budget - month_spend)
+    budget_usage_pct = round((month_spend / total_monthly_budget * 100), 1) if total_monthly_budget > 0 else 0
     
-    # Daily average this month
-    days_passed = max(1, now.day)
-    daily_avg_spend = round(current_month_spend / days_passed, 2)
+    # Daily average
+    if active_month == current_calendar_month:
+        days_count = max(1, now.day)
+    else:
+        try:
+            y, m = map(int, active_month.split('-'))
+            import calendar
+            days_count = calendar.monthrange(y, m)[1]
+        except Exception:
+            days_count = 30
+    daily_avg_spend = round(month_spend / days_count, 2)
     
-    # Category Breakdown for Current Month & All Time
+    # Category Breakdown
     category_totals = {}
-    for e in current_month_expenses:
+    for e in month_expenses:
         cat = e["category"]
         category_totals[cat] = category_totals.get(cat, 0.0) + e["amount"]
         
@@ -383,7 +426,7 @@ def get_summary_stats():
     for cat_name, amt in category_totals.items():
         meta = cat_meta.get(cat_name, {"color": "#64748B", "icon": "tags"})
         budget_limit = budgets.get(cat_name, 0.0)
-        pct_of_total = round((amt / current_month_spend * 100), 1) if current_month_spend > 0 else 0
+        pct_of_total = round((amt / month_spend * 100), 1) if month_spend > 0 else 0
         pct_of_budget = round((amt / budget_limit * 100), 1) if budget_limit > 0 else 0
         category_breakdown.append({
             "category": cat_name,
@@ -396,7 +439,7 @@ def get_summary_stats():
         })
     category_breakdown.sort(key=lambda x: x["amount"], reverse=True)
     
-    # Budget vs Actual comparison across all configured categories
+    # Budget vs Actual comparison
     budget_comparison = []
     for cat_name, limit in budgets.items():
         actual = category_totals.get(cat_name, 0.0)
@@ -414,12 +457,26 @@ def get_summary_stats():
         })
     budget_comparison.sort(key=lambda x: x["actual"], reverse=True)
 
-    # 30-day timeline trend
+    # Timeline trend for the active month (or last 30 days if current)
     timeline_days = {}
-    for i in range(29, -1, -1):
-        day_str = (now - timedelta(days=i)).strftime("%Y-%m-%d")
-        timeline_days[day_str] = 0.0
-    for e in expenses:
+    if active_month == current_calendar_month:
+        for i in range(29, -1, -1):
+            day_str = (now - timedelta(days=i)).strftime("%Y-%m-%d")
+            timeline_days[day_str] = 0.0
+    else:
+        try:
+            y, m = map(int, active_month.split('-'))
+            import calendar
+            num_days = calendar.monthrange(y, m)[1]
+            for day in range(1, num_days + 1):
+                day_str = f"{y:04d}-{m:02d}-{day:02d}"
+                timeline_days[day_str] = 0.0
+        except Exception:
+            for i in range(29, -1, -1):
+                day_str = (now - timedelta(days=i)).strftime("%Y-%m-%d")
+                timeline_days[day_str] = 0.0
+
+    for e in month_expenses:
         if e["date"] in timeline_days:
             timeline_days[e["date"]] += e["amount"]
             
@@ -428,7 +485,7 @@ def get_summary_stats():
     
     # Payment Method breakdown
     payment_method_totals = {}
-    for e in current_month_expenses:
+    for e in month_expenses:
         p = e.get("payment_method") or "Other"
         payment_method_totals[p] = payment_method_totals.get(p, 0.0) + e["amount"]
         
@@ -437,12 +494,28 @@ def get_summary_stats():
     
     # Month-over-month growth percentage
     if prev_month_spend > 0:
-        mom_growth_pct = round(((current_month_spend - prev_month_spend) / prev_month_spend) * 100, 1)
+        mom_growth_pct = round(((month_spend - prev_month_spend) / prev_month_spend) * 100, 1)
     else:
         mom_growth_pct = 0.0
 
+    # Format available months list for frontend dropdown
+    available_months = []
+    for ym in unique_months:
+        try:
+            lbl = datetime.strptime(ym, "%Y-%m").strftime("%B %Y")
+        except Exception:
+            lbl = ym
+        available_months.append({
+            "value": ym,
+            "label": lbl,
+            "is_active": (ym == active_month)
+        })
+
     return {
-        "current_month_spend": round(current_month_spend, 2),
+        "active_month": active_month,
+        "active_month_label": month_display_title,
+        "available_months": available_months,
+        "current_month_spend": round(month_spend, 2),
         "prev_month_spend": round(prev_month_spend, 2),
         "mom_growth_pct": mom_growth_pct,
         "total_monthly_budget": round(total_monthly_budget, 2),
@@ -451,7 +524,7 @@ def get_summary_stats():
         "daily_avg_spend": daily_avg_spend,
         "total_all_time": round(total_all_time, 2),
         "total_transactions_count": len(expenses),
-        "current_month_count": len(current_month_expenses),
+        "current_month_count": len(month_expenses),
         "top_category": top_category,
         "top_category_amount": round(top_category_amount, 2),
         "category_breakdown": category_breakdown,
