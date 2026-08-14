@@ -190,8 +190,9 @@ def upload_statement():
         if file.filename == '':
             return jsonify({"success": False, "error": "No selected file"}), 400
 
+        custom_key = request.headers.get("X-Gemini-API-Key") or request.form.get("gemini_api_key")
         # Parse with Gemini LLM
-        parsed_transactions = gemini_parser.parse_statement(file, filename=file.filename)
+        parsed_transactions = gemini_parser.parse_statement(file, filename=file.filename, custom_api_key=custom_key)
         detected_month = parsed_transactions[0]["date"][:7] if parsed_transactions and len(parsed_transactions[0].get("date", "")) >= 7 else None
         
         return jsonify({
@@ -207,14 +208,17 @@ def upload_statement():
 @app.route('/api/insights', methods=['POST', 'GET'])
 def generate_insights():
     try:
-        month = request.args.get('month') or (request.get_json() or {}).get('month')
+        data = request.get_json(silent=True) or {}
+        month = request.args.get('month') or data.get('month')
+        custom_key = request.headers.get("X-Gemini-API-Key") or data.get("gemini_api_key")
         summary = excel_manager.get_summary_stats(month=month)
         expenses = excel_manager.get_expenses(month=summary.get("active_month"))
         
         insights = gemini_parser.generate_financial_insights(
             month_label=summary.get("active_month_label", "Selected Month"),
             summary_data=summary,
-            expenses_data=expenses
+            expenses_data=expenses,
+            custom_api_key=custom_key
         )
         return jsonify({
             "success": True,
@@ -223,6 +227,32 @@ def generate_insights():
         })
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route('/api/config/api-key', methods=['GET', 'POST'])
+def manage_api_key():
+    if request.method == 'GET':
+        key = gemini_parser.get_gemini_api_key()
+        masked = f"{key[:6]}...{key[-4:]}" if len(key) >= 10 else ("Configured" if key else "")
+        return jsonify({
+            "success": True,
+            "configured": bool(key),
+            "masked": masked
+        })
+    else:
+        try:
+            data = request.get_json() or {}
+            new_key = str(data.get("api_key", "")).strip()
+            if not new_key:
+                return jsonify({"success": False, "error": "API key cannot be empty"}), 400
+            
+            os.environ["GEMINI_API_KEY"] = new_key
+            cfg_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".api_key")
+            with open(cfg_file, "w") as f:
+                f.write(new_key)
+                
+            return jsonify({"success": True, "message": "Gemini API key saved successfully!"})
+        except Exception as e:
+            return jsonify({"success": False, "error": str(e)}), 500
 
 @app.route('/download-excel')
 def download_excel():

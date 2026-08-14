@@ -102,6 +102,12 @@ function initEventListeners() {
     document.getElementById('cancelStatementReviewBtn')?.addEventListener('click', closeStatementModal);
     document.getElementById('reUploadStatementBtn')?.addEventListener('click', showUploadStep);
 
+    // API Key Settings Modal
+    document.getElementById('openApiKeyModalBtn')?.addEventListener('click', openApiKeyModal);
+    document.getElementById('closeApiKeyModalBtn')?.addEventListener('click', closeApiKeyModal);
+    document.getElementById('cancelApiKeyModalBtn')?.addEventListener('click', closeApiKeyModal);
+    document.getElementById('apiKeyForm')?.addEventListener('submit', handleApiKeySubmit);
+
     initDropzoneEvents();
 
     // Dashboard Month Selector
@@ -302,9 +308,14 @@ async function handleStatementUpload(file) {
     const formData = new FormData();
     formData.append('file', file);
 
+    const clientApiKey = localStorage.getItem('gemini_api_key') || '';
+    const headers = {};
+    if (clientApiKey) headers['X-Gemini-API-Key'] = clientApiKey;
+
     try {
         const res = await fetch('/api/upload-statement', {
             method: 'POST',
+            headers: headers,
             body: formData
         });
 
@@ -319,6 +330,9 @@ async function handleStatementUpload(file) {
         } else {
             showToast(data.error || 'Failed to parse statement', 'error');
             showUploadStep();
+            if (data.error && data.error.includes('API key')) {
+                openApiKeyModal();
+            }
         }
     } catch (err) {
         showToast('Error uploading statement: ' + err.message, 'error');
@@ -502,6 +516,7 @@ async function handleBulkImportConfirm() {
    ========================================================================== */
 async function loadInitialData() {
     try {
+        checkApiKeyStatus();
         await fetchCategories();
         await Promise.all([
             fetchSummary(),
@@ -1310,6 +1325,104 @@ function showToast(message, type = 'success') {
 }
 
 /* ==========================================================================
+   Gemini API Key Modal & Settings
+   ========================================================================== */
+function openApiKeyModal() {
+    const modal = document.getElementById('apiKeyModal');
+    if (!modal) return;
+    modal.classList.add('active');
+
+    const input = document.getElementById('apiKeyInput');
+    const saved = localStorage.getItem('gemini_api_key') || '';
+    if (input) {
+        input.value = saved;
+        input.focus();
+    }
+}
+
+function closeApiKeyModal() {
+    const modal = document.getElementById('apiKeyModal');
+    if (modal) modal.classList.remove('active');
+}
+
+async function handleApiKeySubmit(e) {
+    e.preventDefault();
+    const input = document.getElementById('apiKeyInput');
+    const newKey = input ? input.value.trim() : '';
+
+    if (!newKey) {
+        showToast('Please enter a valid Gemini API key', 'error');
+        return;
+    }
+
+    try {
+        localStorage.setItem('gemini_api_key', newKey);
+        
+        // Also save to server backend config
+        const res = await fetch('/api/config/api-key', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ api_key: newKey })
+        });
+        const data = await res.json();
+        
+        if (data.success) {
+            showToast('Gemini API key saved & verified!', 'success');
+            updateApiKeyBadge(true);
+            closeApiKeyModal();
+        } else {
+            showToast(data.error || 'Failed to save key on server', 'error');
+        }
+    } catch (err) {
+        showToast('Key saved locally in browser!', 'success');
+        updateApiKeyBadge(true);
+        closeApiKeyModal();
+    }
+}
+
+async function checkApiKeyStatus() {
+    try {
+        const clientKey = localStorage.getItem('gemini_api_key');
+        if (clientKey) {
+            updateApiKeyBadge(true);
+            // Sync with backend if needed
+            fetch('/api/config/api-key', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ api_key: clientKey })
+            }).catch(() => {});
+            return;
+        }
+
+        const res = await fetch('/api/config/api-key');
+        const data = await res.json();
+        if (data.success && data.configured) {
+            updateApiKeyBadge(true);
+        } else {
+            updateApiKeyBadge(false);
+        }
+    } catch (err) {
+        console.warn('API key status check failed:', err);
+    }
+}
+
+function updateApiKeyBadge(isConfigured) {
+    const btnText = document.getElementById('apiKeyBtnText');
+    const btn = document.getElementById('openApiKeyModalBtn');
+    if (btnText && btn) {
+        if (isConfigured) {
+            btnText.textContent = 'AI Key ✓';
+            btn.style.borderColor = 'rgba(16, 185, 129, 0.4)';
+            btn.style.color = 'var(--accent-emerald)';
+        } else {
+            btnText.textContent = 'Set AI Key';
+            btn.style.borderColor = 'rgba(244, 63, 94, 0.4)';
+            btn.style.color = 'var(--accent-rose)';
+        }
+    }
+}
+
+/* ==========================================================================
    AI Financial Insights Modal
    ========================================================================== */
 function openInsightsModal() {
@@ -1334,12 +1447,16 @@ async function loadFinancialInsights() {
     if (contentState) contentState.style.display = 'none';
     if (regenBtn) regenBtn.disabled = true;
 
+    const clientApiKey = localStorage.getItem('gemini_api_key') || '';
+    const headers = { 'Content-Type': 'application/json' };
+    if (clientApiKey) headers['X-Gemini-API-Key'] = clientApiKey;
+
     try {
         const monthParam = state.selectedMonth || 'auto';
         const res = await fetch(`/api/insights?month=${encodeURIComponent(monthParam)}`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ month: monthParam })
+            headers: headers,
+            body: JSON.stringify({ month: monthParam, gemini_api_key: clientApiKey })
         });
         const data = await res.json();
 
@@ -1351,6 +1468,9 @@ async function loadFinancialInsights() {
         } else {
             showToast(data.error || 'Failed to generate insights', 'error');
             closeInsightsModal();
+            if (data.error && data.error.includes('API key')) {
+                openApiKeyModal();
+            }
         }
     } catch (err) {
         showToast('Error generating insights: ' + err.message, 'error');

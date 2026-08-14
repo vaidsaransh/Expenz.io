@@ -152,16 +152,50 @@ def clean_json_response(raw_text):
     except Exception:
         pass
         
-    return []
+def get_gemini_api_key(passed_key=None):
+    if passed_key and str(passed_key).strip():
+        return str(passed_key).strip()
+    
+    for key_name in ["GEMINI_API_KEY", "GOOGLE_API_KEY", "GEMINI_KEY"]:
+        val = os.environ.get(key_name, "")
+        if val and str(val).strip():
+            return str(val).strip()
+            
+    # Check .env
+    if os.path.exists(".env"):
+        try:
+            with open(".env", "r") as f:
+                for line in f:
+                    if "=" in line:
+                        k, v = line.split("=", 1)
+                        if k.strip() in ["GEMINI_API_KEY", "GOOGLE_API_KEY", "GEMINI_KEY"]:
+                            clean_v = v.strip().strip('"').strip("'")
+                            if clean_v: 
+                                return clean_v
+        except Exception:
+            pass
+            
+    # Check local .api_key file
+    cfg_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".api_key")
+    if os.path.exists(cfg_file):
+        try:
+            with open(cfg_file, "r") as f:
+                val = f.read().strip()
+                if val: 
+                    return val
+        except Exception:
+            pass
+            
+    return ""
 
-def parse_statement(file_obj, filename=""):
+def parse_statement(file_obj, filename="", custom_api_key=None):
     """
     Parses statement file using the Gemini API client.
     """
     ext = os.path.splitext(filename.lower())[1] if filename else ""
-    api_key = os.environ.get("GEMINI_API_KEY", GEMINI_API_KEY)
+    api_key = get_gemini_api_key(custom_api_key)
     if not api_key:
-        raise ValueError("Gemini API key is not configured.")
+        raise ValueError("Gemini API key is not configured. Please set your key in Settings or environment variables.")
 
     client = genai.Client(api_key=api_key)
     models_to_try = ["gemini-3.5-flash", "gemini-3.1-flash-lite", "gemini-3.7-flash"]
@@ -327,13 +361,13 @@ Return ONLY a valid JSON object matching this schema:
 }
 """
 
-def generate_financial_insights(month_label, summary_data, expenses_data):
+def generate_financial_insights(month_label, summary_data, expenses_data, custom_api_key=None):
     """
     Generates intelligent financial insights for the selected month using Gemini.
     """
-    api_key = os.environ.get("GEMINI_API_KEY", "")
+    api_key = get_gemini_api_key(custom_api_key)
     if not api_key:
-        raise ValueError("Gemini API key is not configured.")
+        raise ValueError("Gemini API key is not configured. Please set your key in Settings or environment variables.")
 
     client = genai.Client(api_key=api_key)
     models_to_try = ["gemini-3.5-flash", "gemini-3.1-flash-lite", "gemini-3.7-flash"]
