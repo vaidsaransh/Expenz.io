@@ -1877,6 +1877,9 @@ body {
 /* ==========================================================================
    Mobile & Safari iOS Optimization (iPhone 15 Pro, iPads, Responsive)
    ========================================================================== */
+/* ==========================================================================
+   Mobile Native UI & Safari iOS Experience (iPhone 15 Pro, Android)
+   ========================================================================== */
 :root {
     --safe-area-top: env(safe-area-inset-top, 0px);
     --safe-area-bottom: env(safe-area-inset-bottom, 0px);
@@ -1884,37 +1887,236 @@ body {
     --safe-area-right: env(safe-area-inset-right, 0px);
 }
 
-body {
-    -webkit-text-size-adjust: 100%;
+.mobile-only {
+    display: none !important;
+}
+
+/* Mobile Segmented Switcher */
+.mobile-segmented-control {
+    display: none;
+    background: var(--bg-surface);
+    border: 1px solid var(--bg-card-border);
+    border-radius: var(--radius-lg);
+    padding: 4px;
+    margin-bottom: 18px;
+    gap: 6px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+}
+
+.segmented-btn {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 10px 14px;
+    border-radius: var(--radius-md);
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 13px;
+    font-weight: 700;
+    font-family: var(--font-main);
+    cursor: pointer;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.segmented-btn.active {
+    background: var(--accent-gradient);
+    color: #ffffff;
+    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.35);
+}
+
+/* Mobile Bottom Navigation Bar */
+.mobile-bottom-bar {
+    display: none;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 990;
+    background: rgba(11, 15, 25, 0.88);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    padding: 8px 12px max(10px, var(--safe-area-bottom)) 12px;
+    justify-content: space-around;
+    align-items: center;
+    box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.4);
+}
+
+[data-theme="light"] .mobile-bottom-bar {
+    background: rgba(255, 255, 255, 0.9);
+    border-top-color: rgba(0, 0, 0, 0.08);
+    box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.08);
+}
+
+.mob-nav-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    font-size: 10.5px;
+    font-weight: 600;
+    font-family: var(--font-main);
+    padding: 6px 12px;
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: all 0.2s ease;
     -webkit-tap-highlight-color: transparent;
-    touch-action: manipulation;
 }
 
-.app-container {
-    padding-top: max(16px, var(--safe-area-top));
-    padding-bottom: max(32px, var(--safe-area-bottom));
-    padding-left: max(16px, var(--safe-area-left));
-    padding-right: max(16px, var(--safe-area-right));
+.mob-nav-item i {
+    font-size: 18px;
+    transition: transform 0.2s ease;
 }
 
-/* Tablet & Mobile Screens (< 1024px) */
+.mob-nav-item.active {
+    color: var(--accent-primary);
+}
+
+.mob-nav-item.active i {
+    transform: translateY(-2px);
+    color: var(--accent-primary);
+}
+
+/* Center Floating Action Button (FAB) */
+.mob-nav-fab-wrap {
+    position: relative;
+    top: -14px;
+}
+
+.mob-fab-btn {
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #ec4899, #6366f1);
+    color: #ffffff;
+    border: 3px solid var(--bg-surface);
+    font-size: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 8px 24px rgba(99, 102, 241, 0.5), 0 0 15px rgba(236, 72, 153, 0.35);
+    transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+    -webkit-tap-highlight-color: transparent;
+}
+
+.mob-fab-btn:active {
+    transform: scale(0.9);
+}
+
+/* Mobile Action Sheets */
+.sheet-drag-handle {
+    width: 38px;
+    height: 4.5px;
+    background: rgba(255, 255, 255, 0.25);
+    border-radius: 3px;
+    margin: 8px auto 12px auto;
+}
+
+[data-theme="light"] .sheet-drag-handle {
+    background: rgba(0, 0, 0, 0.2);
+}
+
+.sheet-actions-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 8px 16px 24px 16px;
+}
+
+.sheet-action-item {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 16px;
+    background: var(--bg-surface);
+    border: 1px solid var(--bg-card-border);
+    border-radius: var(--radius-md);
+    text-align: left;
+    color: var(--text-primary);
+    text-decoration: none;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.sheet-action-item:active {
+    background: var(--bg-surface-hover);
+    transform: scale(0.98);
+}
+
+.action-item-icon {
+    width: 42px;
+    height: 42px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    flex-shrink: 0;
+}
+
+.action-item-text {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.action-item-text strong {
+    font-size: 14px;
+    color: var(--text-primary);
+}
+
+.action-item-text span {
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+/* ==========================================================================
+   Responsive Breakpoints
+   ========================================================================== */
 @media (max-width: 1024px) {
     .metrics-grid {
         grid-template-columns: repeat(2, 1fr);
     }
-
     .charts-grid {
         grid-template-columns: 1fr;
     }
-
     .chart-card.span-2 {
         grid-column: span 1;
     }
 }
 
-/* Mobile Screens (< 768px) - iPhone & Android Phones */
 @media (max-width: 768px) {
-    /* Prevent iOS Safari from zooming in on input tap */
+    .desktop-only {
+        display: none !important;
+    }
+
+    .mobile-only {
+        display: flex !important;
+    }
+
+    .mobile-segmented-control {
+        display: flex;
+    }
+
+    .mobile-bottom-bar {
+        display: flex;
+    }
+
+    /* Add bottom padding so fixed bottom bar never obscures content */
+    .app-container {
+        padding-bottom: calc(90px + var(--safe-area-bottom));
+    }
+
+    /* Prevent iOS Safari from zooming into inputs */
     input, select, textarea, button {
         font-size: 16px !important;
     }
@@ -1923,53 +2125,43 @@ body {
         display: none !important;
     }
 
-    /* Navbar on Mobile */
+    /* Compact Mobile Navbar */
     .navbar {
-        flex-direction: column;
-        align-items: stretch;
-        gap: 14px;
-        padding: 14px 16px;
+        padding: 12px 14px;
+        margin-bottom: 14px;
+        justify-content: space-between;
     }
 
     .nav-left {
-        justify-content: space-between;
-        width: 100%;
+        width: auto;
     }
 
     .nav-center {
-        width: 100%;
-    }
-
-    .excel-status-pill {
-        justify-content: center;
-        width: 100%;
+        display: none;
     }
 
     .nav-right {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
+        display: flex;
+        align-items: center;
         gap: 8px;
-        width: 100%;
+        width: auto;
     }
 
-    .nav-right .btn-theme-toggle {
-        grid-column: span 2;
-        width: 100%;
-        border-radius: var(--radius-md);
-        height: 38px;
+    /* Hide desktop buttons from top navbar on mobile since bottom dock handles them */
+    .nav-right #openStatementModalBtn,
+    .nav-right #downloadExcelBtn,
+    .nav-right #openBudgetsBtn,
+    .nav-right #openBudgetsModalBtn,
+    .nav-right #openAddModalBtn {
+        display: none !important;
     }
 
-    .btn {
-        min-height: 42px;
-        font-size: 13.5px !important;
-        padding: 8px 12px;
-    }
-
-    /* Controls Bar */
+    /* Controls Bar on Mobile */
     .dashboard-controls-bar {
         flex-direction: column;
         align-items: stretch;
-        padding: 14px;
+        padding: 12px 14px;
+        gap: 10px;
     }
 
     .controls-left {
@@ -1977,21 +2169,42 @@ body {
     }
 
     .controls-right {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
         width: 100%;
     }
 
-    .month-selector-wrap {
+    .controls-right .month-selector-wrap {
         width: 100%;
-        justify-content: space-between;
+        padding: 6px 10px;
     }
 
-    .month-dropdown {
+    .controls-right #openInsightsModalBtn {
+        grid-column: span 2;
         width: 100%;
+        justify-content: center;
     }
 
-    /* Quick Log Strip on Mobile */
+    /* Metrics Grid on Mobile */
+    .metrics-grid {
+        grid-template-columns: 1fr;
+        gap: 12px;
+        margin-bottom: 18px;
+    }
+
+    .metric-card {
+        padding: 16px;
+    }
+
+    .metric-value {
+        font-size: 26px;
+    }
+
+    /* Quick Log on Mobile */
     .quick-log-strip {
         padding: 14px;
+        margin-bottom: 18px;
     }
 
     .quick-log-form {
@@ -1999,45 +2212,45 @@ body {
         gap: 10px;
     }
 
-    .quick-form-badge {
-        grid-column: span 2;
-        justify-content: center;
-    }
-
-    .quick-input-group, .quick-select-group {
-        grid-column: span 2;
-    }
-
-    .quick-input-group.date-group {
+    .quick-form-badge,
+    .quick-input-group,
+    .quick-select-group,
+    .quick-input-group.date-group,
+    .quick-submit-btn {
         grid-column: span 2;
     }
 
     .quick-submit-btn {
-        grid-column: span 2;
-        min-height: 44px;
+        min-height: 46px;
     }
 
-    /* KPI Metrics on Mobile */
-    .metrics-grid {
+    /* Charts on Mobile */
+    .charts-grid {
         grid-template-columns: 1fr;
         gap: 14px;
+        margin-bottom: 18px;
     }
 
-    .metric-card {
-        padding: 18px;
+    .chart-card {
+        padding: 16px;
     }
 
-    /* Table Actions on Mobile */
+    .chart-container {
+        min-height: 220px;
+        max-height: 260px;
+    }
+
+    /* Table & Actions on Mobile */
     .transactions-header {
         flex-direction: column;
         align-items: stretch;
-        gap: 14px;
+        gap: 12px;
     }
 
     .table-actions {
         flex-direction: column;
         align-items: stretch;
-        gap: 10px;
+        gap: 8px;
     }
 
     .search-input-wrap {
@@ -2051,10 +2264,6 @@ body {
         width: 100%;
     }
 
-    .filter-group select {
-        width: 100%;
-    }
-
     #clearAllExpensesBtn {
         grid-column: span 2;
         width: 100%;
@@ -2063,32 +2272,22 @@ body {
 
     .table-responsive {
         -webkit-overflow-scrolling: touch;
-        border-radius: var(--radius-md);
     }
 
-    .modern-table {
-        min-width: 600px;
-    }
-
-    /* Table Pagination Footer */
-    .table-pagination-footer {
-        flex-direction: column;
-        gap: 12px;
-        align-items: center;
-    }
-
-    /* Bottom Sheet Modals on Mobile */
+    /* Slide-Up Bottom Sheet Modals */
     .modal-backdrop {
         align-items: flex-end;
         padding: 0;
     }
 
     .modal-dialog {
-        border-radius: 20px 20px 0 0;
+        border-radius: 24px 24px 0 0;
         max-height: 90vh;
         overflow-y: auto;
         -webkit-overflow-scrolling: touch;
         margin: 0;
+        width: 100%;
+        max-width: 100%;
         transform: translateY(100%);
     }
 
@@ -2097,47 +2296,25 @@ body {
     }
 
     .modal-header {
-        padding: 16px 20px;
+        padding: 14px 20px;
     }
 
     .modal-form {
-        padding: 16px 20px;
+        padding: 14px 20px 24px 20px;
     }
 
     .form-row-2 {
         grid-template-columns: 1fr;
     }
 
-    /* Footer on Mobile */
     .app-footer {
         flex-direction: column;
-        align-items: center;
         text-align: center;
-        gap: 14px;
-        padding: 16px;
-    }
-
-    .footer-left, .footer-right {
-        justify-content: center;
+        gap: 12px;
+        margin-bottom: 10px;
     }
 }
 
-/* Extra Small Phones (< 400px - iPhone SE / Mini) */
-@media (max-width: 400px) {
-    .brand-title-row {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 2px;
-    }
-
-    .nav-right {
-        grid-template-columns: 1fr;
-    }
-
-    .filter-group {
-        grid-template-columns: 1fr;
-    }
-}
 
 
 

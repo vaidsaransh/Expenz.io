@@ -108,6 +108,9 @@ function initEventListeners() {
     document.getElementById('cancelApiKeyModalBtn')?.addEventListener('click', closeApiKeyModal);
     document.getElementById('apiKeyForm')?.addEventListener('submit', handleApiKeySubmit);
 
+    // Initialize Mobile Experience & Navigation
+    initMobileExperience();
+
     initDropzoneEvents();
 
     // Dashboard Month Selector
@@ -1015,6 +1018,9 @@ function updatePaginationUI() {
     document.getElementById('pagEnd').textContent = end;
     document.getElementById('pagTotal').textContent = total_items;
 
+    const mobBadge = document.getElementById('mobTxnCountBadge');
+    if (mobBadge) mobBadge.textContent = total_items;
+
     const prevBtn = document.getElementById('prevPageBtn');
     const nextBtn = document.getElementById('nextPageBtn');
 
@@ -1571,6 +1577,125 @@ function renderInsightsContent(insights) {
         </div>
         ` : ''}
     `;
+}
+
+/* ==========================================================================
+   Mobile Experience & Navigation Controllers
+   ========================================================================== */
+function initMobileExperience() {
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth <= 768;
+    document.documentElement.dataset.device = isMobile ? 'mobile' : 'desktop';
+
+    window.addEventListener('resize', () => {
+        const mob = window.innerWidth <= 768;
+        document.documentElement.dataset.device = mob ? 'mobile' : 'desktop';
+    });
+
+    // Mobile Segmented Switcher Tabs
+    const tabOverview = document.getElementById('mobTabOverview');
+    const tabTxns = document.getElementById('mobTabTransactions');
+    const metricsSection = document.querySelector('.metrics-grid');
+    const chartsSection = document.querySelector('.charts-grid');
+    const quickLogSection = document.getElementById('quickLogSection');
+    const txnsSection = document.querySelector('.transactions-section');
+    const insightsBanner = document.querySelector('.insights-banner-card');
+
+    function switchMobileTab(tab) {
+        if (tab === 'overview') {
+            tabOverview?.classList.add('active');
+            tabTxns?.classList.remove('active');
+            if (metricsSection) metricsSection.style.display = 'grid';
+            if (chartsSection) chartsSection.style.display = 'grid';
+            if (quickLogSection) quickLogSection.style.display = 'block';
+            if (insightsBanner) insightsBanner.style.display = 'flex';
+            if (txnsSection) txnsSection.style.display = 'none';
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        } else {
+            tabOverview?.classList.remove('active');
+            tabTxns?.classList.add('active');
+            if (metricsSection) metricsSection.style.display = 'none';
+            if (chartsSection) chartsSection.style.display = 'none';
+            if (quickLogSection) quickLogSection.style.display = 'none';
+            if (insightsBanner) insightsBanner.style.display = 'none';
+            if (txnsSection) {
+                txnsSection.style.display = 'block';
+                txnsSection.scrollIntoView({ behavior: 'smooth' });
+            }
+        }
+    }
+
+    tabOverview?.addEventListener('click', () => switchMobileTab('overview'));
+    tabTxns?.addEventListener('click', () => switchMobileTab('transactions'));
+
+    // Mobile Bottom App Bar Navigation
+    const navHome = document.getElementById('mobNavDashboard');
+    const navTxns = document.getElementById('mobNavTransactions');
+    const fabAdd = document.getElementById('mobFabAddBtn');
+    const navAi = document.getElementById('mobNavAiTools');
+    const navSettings = document.getElementById('mobNavSettings');
+
+    function setBottomNavActive(btn) {
+        document.querySelectorAll('.mob-nav-item').forEach(b => b.classList.remove('active'));
+        btn?.classList.add('active');
+    }
+
+    navHome?.addEventListener('click', () => {
+        setBottomNavActive(navHome);
+        switchMobileTab('overview');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+
+    navTxns?.addEventListener('click', () => {
+        setBottomNavActive(navTxns);
+        switchMobileTab('transactions');
+    });
+
+    fabAdd?.addEventListener('click', () => {
+        openExpenseModal();
+    });
+
+    // Mobile AI Tools Sheet
+    const aiSheet = document.getElementById('mobAiActionSheet');
+    navAi?.addEventListener('click', () => {
+        if (aiSheet) aiSheet.classList.add('active');
+    });
+    document.getElementById('closeMobAiSheetBtn')?.addEventListener('click', () => {
+        if (aiSheet) aiSheet.classList.remove('active');
+    });
+
+    document.getElementById('mobActionImportStatement')?.addEventListener('click', () => {
+        if (aiSheet) aiSheet.classList.remove('active');
+        openStatementModal();
+    });
+
+    document.getElementById('mobActionGenerateInsights')?.addEventListener('click', () => {
+        if (aiSheet) aiSheet.classList.remove('active');
+        openInsightsModal();
+    });
+
+    document.getElementById('mobActionConfigureKey')?.addEventListener('click', () => {
+        if (aiSheet) aiSheet.classList.remove('active');
+        openApiKeyModal();
+    });
+
+    // Mobile Manage/Settings Sheet
+    const manageSheet = document.getElementById('mobManageActionSheet');
+    navSettings?.addEventListener('click', () => {
+        if (manageSheet) manageSheet.classList.add('active');
+    });
+    document.getElementById('closeMobManageSheetBtn')?.addEventListener('click', () => {
+        if (manageSheet) manageSheet.classList.remove('active');
+    });
+
+    document.getElementById('mobActionEditBudgets')?.addEventListener('click', () => {
+        if (manageSheet) manageSheet.classList.remove('active');
+        openBudgetsModal();
+    });
+
+    document.getElementById('mobActionResetAll')?.addEventListener('click', () => {
+        if (manageSheet) manageSheet.classList.remove('active');
+        handleClearAllExpenses();
+    });
 }
 
 /* ==========================================================================

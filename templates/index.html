@@ -121,6 +121,18 @@
             </div>
         </section>
 
+        <!-- Mobile Segmented View Switcher (Visible on mobile) -->
+        <div class="mobile-segmented-control" id="mobileSegmentedControl">
+            <button class="segmented-btn active" data-tab="overview" id="mobTabOverview">
+                <i class="fa-solid fa-chart-pie"></i>
+                <span>Overview & Charts</span>
+            </button>
+            <button class="segmented-btn" data-tab="transactions" id="mobTabTransactions">
+                <i class="fa-solid fa-receipt"></i>
+                <span>Transactions (<span id="mobTxnCountBadge">0</span>)</span>
+            </button>
+        </div>
+
         <!-- Quick Log Strip Bar -->
         <section class="quick-log-strip glass-card" id="quickLogSection">
             <form id="quickLogForm" class="quick-log-form">
@@ -756,6 +768,121 @@
                 <button type="button" class="btn btn-ai-sparkle btn-icon" id="regenerateInsightsBtn">
                     <i class="fa-solid fa-arrows-rotate"></i>
                     <span>Re-Analyze</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Mobile Native Bottom App Bar (Fixed at bottom on mobile) -->
+    <nav class="mobile-bottom-bar" id="mobileBottomBar">
+        <button class="mob-nav-item active" data-target="dashboard" id="mobNavDashboard">
+            <i class="fa-solid fa-house"></i>
+            <span>Overview</span>
+        </button>
+        <button class="mob-nav-item" data-target="transactions" id="mobNavTransactions">
+            <i class="fa-solid fa-receipt"></i>
+            <span>Expenses</span>
+        </button>
+        <div class="mob-nav-fab-wrap">
+            <button class="mob-fab-btn glow-button" id="mobFabAddBtn" aria-label="Log New Expense">
+                <i class="fa-solid fa-plus"></i>
+            </button>
+        </div>
+        <button class="mob-nav-item" data-target="ai-tools" id="mobNavAiTools">
+            <i class="fa-solid fa-wand-magic-sparkles"></i>
+            <span>AI Tools</span>
+        </button>
+        <button class="mob-nav-item" data-target="settings" id="mobNavSettings">
+            <i class="fa-solid fa-sliders"></i>
+            <span>Manage</span>
+        </button>
+    </nav>
+
+    <!-- Mobile AI Tools Action Sheet Modal -->
+    <div class="modal-backdrop" id="mobAiActionSheet">
+        <div class="modal-dialog glass-card sheet-dialog">
+            <div class="sheet-drag-handle"></div>
+            <div class="modal-header">
+                <div class="modal-title-wrap">
+                    <div class="modal-icon-badge icon-ai-sparkle">
+                        <i class="fa-solid fa-wand-magic-sparkles"></i>
+                    </div>
+                    <div>
+                        <h3 class="modal-title">AI Financial Tools</h3>
+                        <p class="modal-subtitle">Powered by Google Gemini AI</p>
+                    </div>
+                </div>
+                <button class="modal-close-btn" id="closeMobAiSheetBtn">&times;</button>
+            </div>
+            <div class="sheet-actions-list">
+                <button class="sheet-action-item" id="mobActionImportStatement">
+                    <div class="action-item-icon icon-purple"><i class="fa-solid fa-file-invoice-dollar"></i></div>
+                    <div class="action-item-text">
+                        <strong>AI Statement Import</strong>
+                        <span>Auto-extract transactions from PDF or Excel statements</span>
+                    </div>
+                    <i class="fa-solid fa-chevron-right text-muted"></i>
+                </button>
+                <button class="sheet-action-item" id="mobActionGenerateInsights">
+                    <div class="action-item-icon icon-rose"><i class="fa-solid fa-brain"></i></div>
+                    <div class="action-item-text">
+                        <strong>AI Financial Advisor & Insights</strong>
+                        <span>Get personalized health score & money saving tips</span>
+                    </div>
+                    <i class="fa-solid fa-chevron-right text-muted"></i>
+                </button>
+                <button class="sheet-action-item" id="mobActionConfigureKey">
+                    <div class="action-item-icon icon-emerald"><i class="fa-solid fa-key"></i></div>
+                    <div class="action-item-text">
+                        <strong>Gemini API Key Settings</strong>
+                        <span>Configure or update your Gemini API key</span>
+                    </div>
+                    <i class="fa-solid fa-chevron-right text-muted"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Mobile Manage/Settings Action Sheet Modal -->
+    <div class="modal-backdrop" id="mobManageActionSheet">
+        <div class="modal-dialog glass-card sheet-dialog">
+            <div class="sheet-drag-handle"></div>
+            <div class="modal-header">
+                <div class="modal-title-wrap">
+                    <div class="modal-icon-badge" style="background: rgba(59, 130, 246, 0.15); color: var(--accent-blue);">
+                        <i class="fa-solid fa-sliders"></i>
+                    </div>
+                    <div>
+                        <h3 class="modal-title">Manage & Settings</h3>
+                        <p class="modal-subtitle">Budgets, exports & data controls</p>
+                    </div>
+                </div>
+                <button class="modal-close-btn" id="closeMobManageSheetBtn">&times;</button>
+            </div>
+            <div class="sheet-actions-list">
+                <button class="sheet-action-item" id="mobActionEditBudgets">
+                    <div class="action-item-icon icon-blue"><i class="fa-solid fa-sliders"></i></div>
+                    <div class="action-item-text">
+                        <strong>Monthly Budgets</strong>
+                        <span>Customize category budget caps</span>
+                    </div>
+                    <i class="fa-solid fa-chevron-right text-muted"></i>
+                </button>
+                <a href="/download-excel" class="sheet-action-item" id="mobActionExportExcel">
+                    <div class="action-item-icon icon-emerald"><i class="fa-solid fa-file-excel"></i></div>
+                    <div class="action-item-text">
+                        <strong>Export Excel Spreadsheet</strong>
+                        <span>Download live expenses_data.xlsx file</span>
+                    </div>
+                    <i class="fa-solid fa-download text-muted"></i>
+                </a>
+                <button class="sheet-action-item" id="mobActionResetAll">
+                    <div class="action-item-icon icon-rose"><i class="fa-solid fa-trash-can"></i></div>
+                    <div class="action-item-text">
+                        <strong style="color: var(--accent-rose);">Reset All Expenses</strong>
+                        <span>Wipe all transactions and start fresh</span>
+                    </div>
+                    <i class="fa-solid fa-chevron-right text-muted"></i>
                 </button>
             </div>
         </div>
