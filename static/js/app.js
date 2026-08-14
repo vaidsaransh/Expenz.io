@@ -1688,7 +1688,7 @@ function initMobileExperience() {
     const tabOverview = document.getElementById('mobTabOverview');
     const tabTxns = document.getElementById('mobTabTransactions');
     const metricsSection = document.querySelector('.metrics-grid');
-    const chartsSection = document.querySelector('.charts-grid');
+    const chartsSection = document.querySelector('.analytics-grid, .charts-grid');
     const quickLogSection = document.getElementById('quickLogSection');
     const txnsSection = document.querySelector('.transactions-section');
     const insightsBanner = document.querySelector('.insights-banner-card');
@@ -1698,7 +1698,7 @@ function initMobileExperience() {
             tabOverview?.classList.add('active');
             tabTxns?.classList.remove('active');
             if (metricsSection) metricsSection.style.display = 'grid';
-            if (chartsSection) chartsSection.style.display = 'grid';
+            if (chartsSection) chartsSection.style.display = 'flex';
             if (quickLogSection) quickLogSection.style.display = 'block';
             if (insightsBanner) insightsBanner.style.display = 'flex';
             if (txnsSection) txnsSection.style.display = 'none';
@@ -1712,9 +1712,13 @@ function initMobileExperience() {
             if (insightsBanner) insightsBanner.style.display = 'none';
             if (txnsSection) {
                 txnsSection.style.display = 'block';
-                txnsSection.scrollIntoView({ behavior: 'smooth' });
+                window.scrollTo({ top: 0, behavior: 'smooth' });
             }
         }
+    }
+
+    if (isMobile) {
+        switchMobileTab('overview');
     }
 
     tabOverview?.addEventListener('click', () => switchMobileTab('overview'));
