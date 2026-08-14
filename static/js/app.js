@@ -3,9 +3,24 @@
  * Includes Gemini AI Statement Analyzer for Bank & Amex Statements
  */
 
+const FALLBACK_CATEGORIES = [
+    { name: "Food & Dining" },
+    { name: "Housing & Rent" },
+    { name: "Utilities & Bills" },
+    { name: "Transportation" },
+    { name: "Shopping & Retail" },
+    { name: "Entertainment & Leisure" },
+    { name: "Healthcare & Wellness" },
+    { name: "Education & Learning" },
+    { name: "Personal Care" },
+    { name: "Investments & Savings" },
+    { name: "Refunds & Credits" },
+    { name: "Miscellaneous" }
+];
+
 // Application State
 const state = {
-    categories: [],
+    categories: [...FALLBACK_CATEGORIES],
     budgets: {},
     summary: null,
     expenses: [],
@@ -408,10 +423,20 @@ function renderReviewTable(transactions) {
     const tbody = document.getElementById('statementReviewTableBody');
     if (!tbody) return;
 
+    const availableCats = (state.categories && state.categories.length > 0) ? state.categories : FALLBACK_CATEGORIES;
+
     tbody.innerHTML = transactions.map((t, idx) => {
-        const catOptions = state.categories.map(c => 
-            `<option value="${c.name}" ${c.name === t.category ? 'selected' : ''}>${c.name}</option>`
-        ).join('');
+        let rowCats = [...availableCats];
+        const currentCat = (t.category || '').trim();
+        if (currentCat && !rowCats.some(c => c.name.toLowerCase() === currentCat.toLowerCase())) {
+            rowCats.unshift({ name: currentCat });
+        }
+
+        const catOptions = rowCats.map(c => {
+            const isSel = currentCat && c.name.toLowerCase() === currentCat.toLowerCase();
+            return `<option value="${escapeHtml(c.name)}" ${isSel ? 'selected' : ''}>${escapeHtml(c.name)}</option>`;
+        }).join('');
+
         const formattedDate = formatDateForInput(t.date);
 
         return `

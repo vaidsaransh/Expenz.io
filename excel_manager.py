@@ -9,7 +9,7 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 EXCEL_FILE = os.path.join(BASE_DIR, "expenses_data.xlsx")
 MASTER_BACKUP_FILE = os.path.join(BASE_DIR, "expenses_data_master_backup.xlsx")
 USER_DATA_DIR = os.path.join(BASE_DIR, "user_data")
-_file_lock = threading.Lock()
+_file_lock = threading.RLock()
 
 def get_excel_file_path(user_id=None):
     if not user_id:
