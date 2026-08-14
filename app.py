@@ -6,18 +6,52 @@ import gemini_parser
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'modern-expense-tracker-secret-key-2026'
 
-# Ensure Excel file is initialized on startup
+# Ensure base Excel file is initialized on startup
 excel_manager.init_excel()
+
+def get_current_user_id():
+    """Extract and sanitize active workspace/device user ID"""
+    user_id = request.headers.get('X-User-Id') or request.args.get('user_id')
+    if not user_id and request.is_json:
+        user_id = (request.get_json(silent=True) or {}).get('user_id')
+    if not user_id or str(user_id).strip().lower() in ("default", "main", "primary", "", "none"):
+        return 'default'
+    clean_id = "".join(c for c in str(user_id) if c.isalnum() or c in ("-", "_")).strip()
+    return clean_id[:64] or 'default'
 
 @app.route('/')
 def index():
     return render_template('index.html')
 
+@app.route('/api/user/profile', methods=['GET', 'POST'])
+def manage_user_profile():
+    user_id = get_current_user_id()
+    if request.method == 'GET':
+        excel_path = excel_manager.get_excel_file_path(user_id)
+        excel_manager.init_excel(excel_path)
+        return jsonify({
+            "success": True,
+            "user_id": user_id,
+            "has_custom_workspace": (user_id != 'default')
+        })
+    else:
+        data = request.get_json() or {}
+        new_user_id = data.get('user_id', '').strip()
+        clean_id = "".join(c for c in str(new_user_id) if c.isalnum() or c in ("-", "_")).strip()[:64] or 'default'
+        excel_path = excel_manager.get_excel_file_path(clean_id)
+        excel_manager.init_excel(excel_path)
+        return jsonify({
+            "success": True,
+            "user_id": clean_id,
+            "message": f"Connected to workspace '{clean_id}'"
+        })
+
 @app.route('/api/summary', methods=['GET'])
 def get_summary():
     try:
+        user_id = get_current_user_id()
         month = request.args.get('month')
-        stats = excel_manager.get_summary_stats(month=month)
+        stats = excel_manager.get_summary_stats(month=month, user_id=user_id)
         return jsonify({"success": True, "data": stats})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
@@ -25,6 +59,7 @@ def get_summary():
 @app.route('/api/expenses', methods=['GET'])
 def get_expenses():
     try:
+        user_id = get_current_user_id()
         month = request.args.get('month')
         start_date = request.args.get('start_date')
         end_date = request.args.get('end_date')
@@ -40,7 +75,8 @@ def get_expenses():
             category=category,
             search=search,
             payment_method=payment_method,
-            month=month
+            month=month,
+            user_id=user_id
         )
         
         total_items = len(all_expenses)
@@ -65,6 +101,7 @@ def get_expenses():
 @app.route('/api/expenses', methods=['POST'])
 def create_expense():
     try:
+        user_id = get_current_user_id()
         data = request.get_json() or {}
         date = data.get('date')
         amount = data.get('amount')
@@ -84,7 +121,8 @@ def create_expense():
             amount=float(amount),
             category=category,
             payment_method=payment_method,
-            description=description
+            description=description,
+            user_id=user_id
         )
         return jsonify({"success": True, "data": new_expense, "message": "Expense logged successfully!"})
     except Exception as e:
@@ -93,12 +131,13 @@ def create_expense():
 @app.route('/api/expenses/bulk', methods=['POST'])
 def create_bulk_expenses():
     try:
+        user_id = get_current_user_id()
         data = request.get_json() or {}
         items = data.get('items', [])
         if not items:
             return jsonify({"success": False, "error": "No items provided"}), 400
 
-        added_records = excel_manager.bulk_add_expenses(items)
+        added_records = excel_manager.bulk_add_expenses(items, user_id=user_id)
         imported_month = added_records[0]["date"][:7] if added_records and len(added_records[0].get("date", "")) >= 7 else None
         return jsonify({
             "success": True,
@@ -113,6 +152,7 @@ def create_bulk_expenses():
 @app.route('/api/expenses/<expense_id>', methods=['PUT'])
 def update_expense(expense_id):
     try:
+        user_id = get_current_user_id()
         data = request.get_json() or {}
         date = data.get('date')
         amount = data.get('amount')
@@ -129,7 +169,8 @@ def update_expense(expense_id):
             amount=float(amount),
             category=category,
             payment_method=payment_method,
-            description=description
+            description=description,
+            user_id=user_id
         )
         if success:
             return jsonify({"success": True, "message": "Expense updated successfully!"})
@@ -141,11 +182,12 @@ def update_expense(expense_id):
 @app.route('/api/expenses/<expense_id>', methods=['DELETE'])
 def delete_expense(expense_id):
     try:
+        user_id = get_current_user_id()
         if str(expense_id).lower() in ['all', 'clear-all']:
-            excel_manager.clear_all_expenses()
+            excel_manager.clear_all_expenses(user_id=user_id)
             return jsonify({"success": True, "message": "All expense records cleared from Excel!"})
 
-        success = excel_manager.delete_expense(expense_id)
+        success = excel_manager.delete_expense(expense_id, user_id=user_id)
         if success:
             return jsonify({"success": True, "message": "Expense deleted successfully!"})
         else:
@@ -156,28 +198,31 @@ def delete_expense(expense_id):
 @app.route('/api/expenses/clear-all', methods=['POST', 'DELETE'])
 def clear_all_expenses():
     try:
-        excel_manager.clear_all_expenses()
+        user_id = get_current_user_id()
+        excel_manager.clear_all_expenses(user_id=user_id)
         return jsonify({"success": True, "message": "All expenses have been reset and cleared from Excel!"})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
 @app.route('/api/budgets', methods=['GET', 'POST'])
 def manage_budgets():
+    user_id = get_current_user_id()
     if request.method == 'GET':
-        budgets = excel_manager.get_budgets()
+        budgets = excel_manager.get_budgets(user_id=user_id)
         return jsonify({"success": True, "data": budgets})
     else:
         try:
             data = request.get_json() or {}
             budgets = data.get('budgets', {})
-            excel_manager.save_budgets(budgets)
+            excel_manager.save_budgets(budgets, user_id=user_id)
             return jsonify({"success": True, "message": "Budgets saved successfully!"})
         except Exception as e:
             return jsonify({"success": False, "error": str(e)}), 500
 
 @app.route('/api/categories', methods=['GET'])
 def get_categories():
-    categories = excel_manager.get_categories()
+    user_id = get_current_user_id()
+    categories = excel_manager.get_categories(user_id=user_id)
     return jsonify({"success": True, "data": categories})
 
 @app.route('/api/upload-statement', methods=['POST'])
@@ -208,11 +253,12 @@ def upload_statement():
 @app.route('/api/insights', methods=['POST', 'GET'])
 def generate_insights():
     try:
+        user_id = get_current_user_id()
         data = request.get_json(silent=True) or {}
         month = request.args.get('month') or data.get('month')
         custom_key = request.headers.get("X-Gemini-API-Key") or data.get("gemini_api_key")
-        summary = excel_manager.get_summary_stats(month=month)
-        expenses = excel_manager.get_expenses(month=summary.get("active_month"))
+        summary = excel_manager.get_summary_stats(month=month, user_id=user_id)
+        expenses = excel_manager.get_expenses(month=summary.get("active_month"), user_id=user_id)
         
         insights = gemini_parser.generate_financial_insights(
             month_label=summary.get("active_month_label", "Selected Month"),
@@ -256,12 +302,16 @@ def manage_api_key():
 
 @app.route('/download-excel')
 def download_excel():
-    excel_path = excel_manager.EXCEL_FILE
+    user_id = request.args.get('user_id') or request.headers.get('X-User-Id') or 'default'
+    excel_path = excel_manager.get_excel_file_path(user_id)
+    if not os.path.exists(excel_path):
+        excel_manager.init_excel(excel_path)
     if os.path.exists(excel_path):
+        clean_user = "".join(c for c in user_id if c.isalnum() or c in ("-", "_")) or "My"
         return send_file(
             excel_path,
             as_attachment=True,
-            download_name="Expense_Budget_Tracker.xlsx",
+            download_name=f"Expenz_{clean_user}_Ledger.xlsx",
             mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
     return jsonify({"error": "File not found"}), 404

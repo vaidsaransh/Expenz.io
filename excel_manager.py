@@ -5,8 +5,22 @@ import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
 
-EXCEL_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "expenses_data.xlsx")
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+USER_DATA_DIR = os.path.join(BASE_DIR, "user_data")
+EXCEL_FILE = os.path.join(BASE_DIR, "expenses_data.xlsx")
 _file_lock = threading.RLock()
+
+def get_excel_file_path(user_id=None):
+    if not user_id or str(user_id).strip().lower() in ("default", "main", "primary", "", "none"):
+        return EXCEL_FILE
+    
+    clean_id = "".join(c for c in str(user_id) if c.isalnum() or c in ("-", "_")).strip()
+    if not clean_id or clean_id.lower() in ("default", "main"):
+        return EXCEL_FILE
+    
+    clean_id = clean_id[:64]
+    os.makedirs(USER_DATA_DIR, exist_ok=True)
+    return os.path.join(USER_DATA_DIR, f"expenses_{clean_id}.xlsx")
 
 DEFAULT_CATEGORIES = [
     {"name": "Food & Dining", "color": "#F59E0B", "icon": "utensils"},
@@ -66,10 +80,12 @@ def auto_fit_columns(sheet):
                 max_len = len(val_str)
         sheet.column_dimensions[col_letter].width = max(max_len + 4, 12)
 
-def init_excel():
+def init_excel(target_file=None):
+    if target_file is None:
+        target_file = EXCEL_FILE
     with _file_lock:
-        if os.path.exists(EXCEL_FILE):
-            return
+        if os.path.exists(target_file):
+            return target_file
 
         wb = openpyxl.Workbook()
         
@@ -79,29 +95,11 @@ def init_excel():
         exp_headers = ["ID", "Date", "Amount ($)", "Category", "Payment Method", "Description", "Created At"]
         style_header(ws_expenses, exp_headers, fill_color="0F172A")
 
-        # Seed initial realistic expenses
-        today = datetime.now()
-        seed_data = [
-            (1, (today - timedelta(days=1)).strftime("%Y-%m-%d"), 64.50, "Food & Dining", "Credit Card", "Grocery run at Whole Foods", (today - timedelta(days=1)).strftime("%Y-%m-%d %H:%M")),
-            (2, (today - timedelta(days=2)).strftime("%Y-%m-%d"), 14.99, "Entertainment & Leisure", "Credit Card", "Netflix Monthly Subscription", (today - timedelta(days=2)).strftime("%Y-%m-%d %H:%M")),
-            (3, (today - timedelta(days=3)).strftime("%Y-%m-%d"), 45.00, "Transportation", "Debit Card", "Gasoline refuel", (today - timedelta(days=3)).strftime("%Y-%m-%d %H:%M")),
-            (4, (today - timedelta(days=4)).strftime("%Y-%m-%d"), 120.00, "Utilities & Bills", "Bank Transfer", "High-speed Fiber Internet & Power", (today - timedelta(days=4)).strftime("%Y-%m-%d %H:%M")),
-            (5, (today - timedelta(days=6)).strftime("%Y-%m-%d"), 89.20, "Shopping & Retail", "Credit Card", "Ergonomic Desk Accessories", (today - timedelta(days=6)).strftime("%Y-%m-%d %H:%M")),
-            (6, (today - timedelta(days=8)).strftime("%Y-%m-%d"), 32.50, "Food & Dining", "Cash", "Lunch with colleagues", (today - timedelta(days=8)).strftime("%Y-%m-%d %H:%M")),
-            (7, (today - timedelta(days=11)).strftime("%Y-%m-%d"), 40.00, "Healthcare & Wellness", "Credit Card", "Pharmacy vitamins & supplements", (today - timedelta(days=11)).strftime("%Y-%m-%d %H:%M")),
-            (8, (today - timedelta(days=14)).strftime("%Y-%m-%d"), 1450.00, "Housing & Rent", "Bank Transfer", "Monthly Apartment Rent", (today - timedelta(days=14)).strftime("%Y-%m-%d %H:%M")),
-            (9, (today - timedelta(days=18)).strftime("%Y-%m-%d"), 50.00, "Education & Learning", "Credit Card", "Online AI Course & Book", (today - timedelta(days=18)).strftime("%Y-%m-%d %H:%M")),
-            (10, (today - timedelta(days=22)).strftime("%Y-%m-%d"), 78.40, "Food & Dining", "Credit Card", "Weekend Dinner & Drinks", (today - timedelta(days=22)).strftime("%Y-%m-%d %H:%M")),
-        ]
-        
-        for row in seed_data:
-            ws_expenses.append(list(row))
-        auto_fit_columns(ws_expenses)
-
         # 2. Budgets Sheet
         ws_budgets = wb.create_sheet(title="Budgets")
         bud_headers = ["Category", "Monthly Budget ($)", "Updated At"]
         style_header(ws_budgets, bud_headers, fill_color="1E293B")
+        today = datetime.now()
         for cat, limit in DEFAULT_BUDGETS.items():
             ws_budgets.append([cat, float(limit), today.strftime("%Y-%m-%d %H:%M")])
         auto_fit_columns(ws_budgets)
@@ -114,15 +112,17 @@ def init_excel():
             ws_categories.append([c["name"], c["color"], c["icon"]])
         auto_fit_columns(ws_categories)
 
-        wb.save(EXCEL_FILE)
+        wb.save(target_file)
+        return target_file
 
-def get_workbook():
-    init_excel()
-    return openpyxl.load_workbook(EXCEL_FILE)
+def get_workbook(user_id=None):
+    fp = get_excel_file_path(user_id)
+    init_excel(fp)
+    return openpyxl.load_workbook(fp), fp
 
-def get_categories():
+def get_categories(user_id=None):
     with _file_lock:
-        wb = get_workbook()
+        wb, _ = get_workbook(user_id)
         if "Categories" not in wb.sheetnames:
             return DEFAULT_CATEGORIES
         ws = wb["Categories"]
@@ -136,9 +136,9 @@ def get_categories():
                 })
         return categories if categories else DEFAULT_CATEGORIES
 
-def get_budgets():
+def get_budgets(user_id=None):
     with _file_lock:
-        wb = get_workbook()
+        wb, _ = get_workbook(user_id)
         if "Budgets" not in wb.sheetnames:
             return DEFAULT_BUDGETS
         ws = wb["Budgets"]
@@ -153,9 +153,9 @@ def get_budgets():
                 budgets[cat] = limit
         return budgets
 
-def save_budgets(new_budgets):
+def save_budgets(new_budgets, user_id=None):
     with _file_lock:
-        wb = get_workbook()
+        wb, fp = get_workbook(user_id)
         if "Budgets" in wb.sheetnames:
             del wb["Budgets"]
         ws = wb.create_sheet(title="Budgets")
@@ -164,12 +164,12 @@ def save_budgets(new_budgets):
         for cat, limit in new_budgets.items():
             ws.append([cat, float(limit), now_str])
         auto_fit_columns(ws)
-        wb.save(EXCEL_FILE)
+        wb.save(fp)
         return True
 
-def get_expenses(start_date=None, end_date=None, category=None, search=None, payment_method=None, month=None):
+def get_expenses(start_date=None, end_date=None, category=None, search=None, payment_method=None, month=None, user_id=None):
     with _file_lock:
-        wb = get_workbook()
+        wb, _ = get_workbook(user_id)
         ws = wb["Expenses"]
         expenses = []
         for row in ws.iter_rows(min_row=2, values_only=True):
@@ -221,9 +221,9 @@ def get_expenses(start_date=None, end_date=None, category=None, search=None, pay
         expenses.sort(key=lambda x: (x["date"], x["id"]), reverse=True)
         return expenses
 
-def add_expense(date, amount, category, payment_method, description):
+def add_expense(date, amount, category, payment_method, description, user_id=None):
     with _file_lock:
-        wb = get_workbook()
+        wb, fp = get_workbook(user_id)
         ws = wb["Expenses"]
         
         # Determine next ID
@@ -241,7 +241,7 @@ def add_expense(date, amount, category, payment_method, description):
         
         ws.append([new_id, str(date), float(amount), str(category), str(payment_method), str(description), now_str])
         auto_fit_columns(ws)
-        wb.save(EXCEL_FILE)
+        wb.save(fp)
         return {
             "id": new_id,
             "date": str(date),
@@ -252,9 +252,9 @@ def add_expense(date, amount, category, payment_method, description):
             "created_at": now_str
         }
 
-def bulk_add_expenses(items):
+def bulk_add_expenses(items, user_id=None):
     with _file_lock:
-        wb = get_workbook()
+        wb, fp = get_workbook(user_id)
         ws = wb["Expenses"]
         
         # Determine starting ID
@@ -291,12 +291,12 @@ def bulk_add_expenses(items):
             })
             
         auto_fit_columns(ws)
-        wb.save(EXCEL_FILE)
+        wb.save(fp)
         return added_records
 
-def update_expense(expense_id, date, amount, category, payment_method, description):
+def update_expense(expense_id, date, amount, category, payment_method, description, user_id=None):
     with _file_lock:
-        wb = get_workbook()
+        wb, fp = get_workbook(user_id)
         ws = wb["Expenses"]
         found = False
         target_row_idx = None
@@ -315,13 +315,13 @@ def update_expense(expense_id, date, amount, category, payment_method, descripti
                 
         if found:
             auto_fit_columns(ws)
-            wb.save(EXCEL_FILE)
+            wb.save(fp)
             return True
         return False
 
-def delete_expense(expense_id):
+def delete_expense(expense_id, user_id=None):
     with _file_lock:
-        wb = get_workbook()
+        wb, fp = get_workbook(user_id)
         ws = wb["Expenses"]
         target_row_idx = None
         for idx, row in enumerate(ws.iter_rows(min_row=2, max_col=1, values_only=True), start=2):
@@ -330,26 +330,26 @@ def delete_expense(expense_id):
                 break
         if target_row_idx is not None:
             ws.delete_rows(target_row_idx, 1)
-            wb.save(EXCEL_FILE)
+            wb.save(fp)
             return True
         return False
 
-def clear_all_expenses():
+def clear_all_expenses(user_id=None):
     with _file_lock:
-        wb = get_workbook()
+        wb, fp = get_workbook(user_id)
         if "Expenses" in wb.sheetnames:
             del wb["Expenses"]
         ws = wb.create_sheet(title="Expenses", index=0)
         exp_headers = ["ID", "Date", "Amount ($)", "Category", "Payment Method", "Description", "Created At"]
         style_header(ws, exp_headers, fill_color="0F172A")
         auto_fit_columns(ws)
-        wb.save(EXCEL_FILE)
+        wb.save(fp)
         return True
 
-def get_summary_stats(month=None):
-    expenses = get_expenses()
-    budgets = get_budgets()
-    categories_list = get_categories()
+def get_summary_stats(month=None, user_id=None):
+    expenses = get_expenses(user_id=user_id)
+    budgets = get_budgets(user_id=user_id)
+    categories_list = get_categories(user_id=user_id)
     cat_meta = {c["name"]: c for c in categories_list}
     
     now = datetime.now()

@@ -126,5 +126,34 @@ class TestExpenseTracker(unittest.TestCase):
         # Clean up
         self.client.post('/api/expenses/clear-all')
 
+    def test_08_multi_tenant_workspace_isolation(self):
+        # User A logs an expense
+        self.client.post('/api/expenses', 
+            headers={"X-User-Id": "user_alice"},
+            json={"date": "2026-08-01", "amount": 150.0, "category": "Shopping & Retail", "description": "Alice Shoes"}
+        )
+        
+        # User B logs a different expense
+        self.client.post('/api/expenses', 
+            headers={"X-User-Id": "user_bob"},
+            json={"date": "2026-08-02", "amount": 45.0, "category": "Food & Dining", "description": "Bob Pizza"}
+        )
+
+        # Verify Alice only sees Alice's expenses
+        res_a = self.client.get('/api/expenses', headers={"X-User-Id": "user_alice"})
+        data_a = res_a.get_json()
+        self.assertEqual(data_a["pagination"]["total_items"], 1)
+        self.assertEqual(data_a["data"][0]["description"], "Alice Shoes")
+
+        # Verify Bob only sees Bob's expenses
+        res_b = self.client.get('/api/expenses', headers={"X-User-Id": "user_bob"})
+        data_b = res_b.get_json()
+        self.assertEqual(data_b["pagination"]["total_items"], 1)
+        self.assertEqual(data_b["data"][0]["description"], "Bob Pizza")
+
+        # Clean up Alice and Bob ledgers
+        self.client.post('/api/expenses/clear-all', headers={"X-User-Id": "user_alice"})
+        self.client.post('/api/expenses/clear-all', headers={"X-User-Id": "user_bob"})
+
 if __name__ == '__main__':
     unittest.main()

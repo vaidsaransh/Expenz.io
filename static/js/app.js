@@ -33,11 +33,45 @@ const state = {
     aiParsedTransactions: []
 };
 
+/* ==========================================================================
+   Multi-Tenant Workspace & Device ID Resolver
+   ========================================================================== */
+function getUserId() {
+    let uid = localStorage.getItem('expenz_user_id');
+    if (!uid) {
+        uid = 'usr_' + Math.random().toString(36).substring(2, 10);
+        localStorage.setItem('expenz_user_id', uid);
+    }
+    return uid;
+}
+
+function setUserId(newUid) {
+    if (newUid) {
+        localStorage.setItem('expenz_user_id', newUid.trim());
+    }
+}
+
+async function apiFetch(url, options = {}) {
+    options.headers = options.headers || {};
+    const userId = getUserId();
+    const apiKey = localStorage.getItem('gemini_api_key');
+    
+    if (options.headers instanceof Headers) {
+        if (!options.headers.has('X-User-Id')) options.headers.set('X-User-Id', userId);
+        if (apiKey && !options.headers.has('X-Gemini-API-Key')) options.headers.set('X-Gemini-API-Key', apiKey);
+    } else {
+        options.headers['X-User-Id'] = userId;
+        if (apiKey && !options.headers['X-Gemini-API-Key']) options.headers['X-Gemini-API-Key'] = apiKey;
+    }
+    return fetch(url, options);
+}
+
 // DOM Ready
 document.addEventListener('DOMContentLoaded', () => {
     initTheme();
     initDateInputs();
     initEventListeners();
+    initWorkspaceSync();
     loadInitialData();
 });
 
@@ -316,9 +350,8 @@ async function handleStatementUpload(file) {
     if (clientApiKey) headers['X-Gemini-API-Key'] = clientApiKey;
 
     try {
-        const res = await fetch('/api/upload-statement', {
+        const res = await apiFetch('/api/upload-statement', {
             method: 'POST',
-            headers: headers,
             body: formData
         });
 
@@ -469,7 +502,7 @@ async function handleBulkImportConfirm() {
     if (btnText) btnText.textContent = 'Importing into Excel...';
 
     try {
-        const res = await fetch('/api/expenses/bulk', {
+        const res = await apiFetch('/api/expenses/bulk', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ items: itemsToImport })
@@ -531,7 +564,7 @@ async function loadInitialData() {
 }
 
 async function fetchCategories() {
-    const res = await fetch('/api/categories');
+    const res = await apiFetch('/api/categories');
     const data = await res.json();
     if (data.success) {
         state.categories = data.data;
@@ -577,7 +610,7 @@ function populateCategoryDropdowns(categories) {
 async function fetchSummary() {
     try {
         const monthParam = state.selectedMonth || 'auto';
-        const res = await fetch(`/api/summary?month=${encodeURIComponent(monthParam)}`);
+        const res = await apiFetch(`/api/summary?month=${encodeURIComponent(monthParam)}`);
         const data = await res.json();
         if (data.success) {
             state.summary = data.data;
@@ -620,7 +653,7 @@ async function fetchExpenses() {
             month: state.selectedMonth || 'auto'
         });
 
-        const res = await fetch(`/api/expenses?${params.toString()}`);
+        const res = await apiFetch(`/api/expenses?${params.toString()}`);
         const data = await res.json();
         if (data.success) {
             state.expenses = data.data;
@@ -1123,7 +1156,7 @@ async function handleQuickLogSubmit(e) {
     }
 
     try {
-        const res = await fetch('/api/expenses', {
+        const res = await apiFetch('/api/expenses', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ amount, description, category, payment_method, date })
@@ -1201,7 +1234,7 @@ async function handleExpenseModalSubmit(e) {
     const method = state.isEditing ? 'PUT' : 'POST';
 
     try {
-        const res = await fetch(url, {
+        const res = await apiFetch(url, {
             method: method,
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
@@ -1225,7 +1258,7 @@ async function handleDeleteExpense(id) {
     }
 
     try {
-        const res = await fetch(`/api/expenses/${id}`, { method: 'DELETE' });
+        const res = await apiFetch(`/api/expenses/${id}`, { method: 'DELETE' });
         const data = await res.json();
         if (data.success) {
             showToast('Expense removed from Excel!', 'success');
@@ -1250,7 +1283,7 @@ async function handleClearAllExpenses() {
     }
 
     try {
-        const res = await fetch('/api/expenses/clear-all', { method: 'POST' });
+        const res = await apiFetch('/api/expenses/clear-all', { method: 'POST' });
         const data = await res.json();
         if (data.success) {
             showToast('🗑️ All expenses have been reset & cleared from Excel!', 'success');
@@ -1282,7 +1315,7 @@ async function handleClearAllExpenses() {
    ========================================================================== */
 async function openBudgetsModal() {
     try {
-        const res = await fetch('/api/budgets');
+        const res = await apiFetch('/api/budgets');
         const data = await res.json();
         if (data.success) {
             state.budgets = data.data;
@@ -1344,7 +1377,7 @@ async function handleBudgetsSubmit(e) {
     });
 
     try {
-        const res = await fetch('/api/budgets', {
+        const res = await apiFetch('/api/budgets', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ budgets: newBudgets })
@@ -1423,7 +1456,7 @@ async function handleApiKeySubmit(e) {
         localStorage.setItem('gemini_api_key', newKey);
         
         // Also save to server backend config
-        const res = await fetch('/api/config/api-key', {
+        const res = await apiFetch('/api/config/api-key', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ api_key: newKey })
@@ -1458,7 +1491,7 @@ async function checkApiKeyStatus() {
             return;
         }
 
-        const res = await fetch('/api/config/api-key');
+        const res = await apiFetch('/api/config/api-key');
         const data = await res.json();
         if (data.success && data.configured) {
             updateApiKeyBadge(true);
@@ -1519,7 +1552,7 @@ async function loadFinancialInsights() {
 
     try {
         const monthParam = state.selectedMonth || 'auto';
-        const res = await fetch(`/api/insights?month=${encodeURIComponent(monthParam)}`, {
+        const res = await apiFetch(`/api/insights?month=${encodeURIComponent(monthParam)}`, {
             method: 'POST',
             headers: headers,
             body: JSON.stringify({ month: monthParam, gemini_api_key: clientApiKey })
@@ -1755,6 +1788,70 @@ function initMobileExperience() {
     document.getElementById('mobActionResetAll')?.addEventListener('click', () => {
         if (manageSheet) manageSheet.classList.remove('active');
         handleClearAllExpenses();
+    });
+}
+
+/* ==========================================================================
+   Workspace Profile & Multi-Device Sync
+   ========================================================================== */
+function openWorkspaceModal() {
+    const modal = document.getElementById('workspaceModal');
+    const input = document.getElementById('currentSyncCodeInput');
+    if (input) input.value = getUserId();
+    if (modal) modal.classList.add('active');
+}
+
+function initWorkspaceSync() {
+    // Update all export links
+    document.querySelectorAll('a[href^="/download-excel"]').forEach(a => {
+        a.href = `/download-excel?user_id=${encodeURIComponent(getUserId())}`;
+    });
+
+    const copyBtn = document.getElementById('copySyncCodeBtn');
+    copyBtn?.addEventListener('click', () => {
+        const uid = getUserId();
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(uid).then(() => {
+                showToast('Sync Code copied to clipboard!', 'success');
+            }).catch(() => {
+                showToast(`Your Sync Code: ${uid}`, 'info');
+            });
+        } else {
+            showToast(`Your Sync Code: ${uid}`, 'info');
+        }
+    });
+
+    const switchBtn = document.getElementById('switchWorkspaceBtn');
+    switchBtn?.addEventListener('click', async () => {
+        const connectInput = document.getElementById('connectSyncCodeInput');
+        const code = connectInput?.value?.trim();
+        if (!code) {
+            showToast('Please enter a Sync Code or custom name', 'error');
+            return;
+        }
+        setUserId(code);
+        showToast(`Connected to workspace '${code}'!`, 'success');
+        document.getElementById('workspaceModal')?.classList.remove('active');
+        if (connectInput) connectInput.value = '';
+        
+        // Update export links
+        document.querySelectorAll('a[href^="/download-excel"]').forEach(a => {
+            a.href = `/download-excel?user_id=${encodeURIComponent(getUserId())}`;
+        });
+
+        // Refresh all data
+        await loadInitialData();
+    });
+
+    document.getElementById('closeWorkspaceModalBtn')?.addEventListener('click', () => {
+        document.getElementById('workspaceModal')?.classList.remove('active');
+    });
+    document.getElementById('closeWorkspaceModalBtn2')?.addEventListener('click', () => {
+        document.getElementById('workspaceModal')?.classList.remove('active');
+    });
+    document.getElementById('mobActionWorkspaceSync')?.addEventListener('click', () => {
+        document.getElementById('mobManageActionSheet')?.classList.remove('active');
+        openWorkspaceModal();
     });
 }
 
