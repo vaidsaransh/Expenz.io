@@ -1878,6 +1878,13 @@ let copilotChatHistory = [];
 function openCopilotModal() {
     const modal = document.getElementById('copilotModal');
     if (modal) modal.classList.add('active');
+    
+    // Hide floating launcher and mobile bottom bar while drawer is open
+    const launcher = document.getElementById('copilotFloatingLauncher');
+    if (launcher) launcher.style.display = 'none';
+    const bottomBar = document.getElementById('mobileBottomBar');
+    if (bottomBar && window.innerWidth <= 768) bottomBar.style.display = 'none';
+
     setTimeout(() => {
         document.getElementById('copilotInput')?.focus();
     }, 150);
@@ -1886,6 +1893,12 @@ function openCopilotModal() {
 function closeCopilotModal() {
     const modal = document.getElementById('copilotModal');
     if (modal) modal.classList.remove('active');
+
+    // Restore floating launcher and mobile bottom bar
+    const launcher = document.getElementById('copilotFloatingLauncher');
+    if (launcher) launcher.style.display = 'block';
+    const bottomBar = document.getElementById('mobileBottomBar');
+    if (bottomBar && window.innerWidth <= 768) bottomBar.style.display = 'flex';
 }
 
 function clearCopilotHistory() {

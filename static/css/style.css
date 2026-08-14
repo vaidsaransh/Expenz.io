@@ -865,6 +865,11 @@ body {
     font-size: 14px;
 }
 
+/* Hide mobile transaction cards on desktop screens */
+.mobile-txns-cards-list {
+    display: none;
+}
+
 /* Pagination Footer */
 .table-pagination-footer {
     display: flex;
@@ -888,31 +893,32 @@ body {
 
 .btn-page {
     padding: 6px 12px;
+    border-radius: var(--radius-sm);
     background: var(--bg-surface);
     border: 1px solid var(--bg-card-border);
-    border-radius: var(--radius-sm);
     color: var(--text-primary);
     font-size: 12px;
-    font-weight: 600;
     cursor: pointer;
-    transition: var(--transition);
     display: inline-flex;
     align-items: center;
-    gap: 4px;
+    gap: 6px;
+    transition: var(--transition);
+}
+
+.btn-page:hover:not(:disabled) {
+    background: var(--bg-surface-hover);
+    border-color: var(--accent-primary);
+    color: var(--accent-primary);
 }
 
 .btn-page:disabled {
-    opacity: 0.4;
+    opacity: 0.5;
     cursor: not-allowed;
-}
-
-.btn-page:not(:disabled):hover {
-    background: var(--bg-surface-hover);
-    border-color: var(--bg-card-border-hover);
 }
 
 .page-numbers {
     display: flex;
+    align-items: center;
     gap: 4px;
 }
 
@@ -924,9 +930,8 @@ body {
     border: 1px solid var(--bg-card-border);
     color: var(--text-secondary);
     font-size: 12px;
-    font-weight: 600;
     cursor: pointer;
-    display: flex;
+    display: inline-flex;
     align-items: center;
     justify-content: center;
     transition: var(--transition);
@@ -936,23 +941,28 @@ body {
     background: var(--accent-primary);
     color: #fff;
     border-color: var(--accent-primary);
-    box-shadow: 0 2px 8px var(--accent-primary-glow);
+    font-weight: 700;
 }
 
-/* Modal Dialogs */
+.btn-page-num:hover:not(.active) {
+    background: var(--bg-surface-hover);
+    color: var(--text-primary);
+}
+
+/* Modals */
 .modal-backdrop {
     position: fixed;
     top: 0;
     left: 0;
     width: 100vw;
     height: 100vh;
-    background: rgba(0, 0, 0, 0.65);
+    background: rgba(0, 0, 0, 0.7);
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
     display: flex;
     align-items: center;
     justify-content: center;
-    z-index: 100;
+    z-index: 10000;
     opacity: 0;
     visibility: hidden;
     transition: opacity 0.25s ease, visibility 0.25s ease;
@@ -3281,9 +3291,19 @@ body {
 }
 
 @media (max-width: 768px) {
+    .copilot-backdrop {
+        z-index: 10000 !important;
+    }
+    .copilot-backdrop.active {
+        display: flex !important;
+        align-items: flex-end !important;
+        padding: 0 !important;
+        z-index: 10000 !important;
+    }
     .copilot-floating-launcher {
         bottom: calc(68px + var(--safe-area-bottom));
         right: 14px;
+        z-index: 999;
     }
     .copilot-launcher-btn {
         padding: 0;
@@ -3298,9 +3318,40 @@ body {
         background: transparent;
     }
     .copilot-dialog {
-        height: 85vh;
-        max-height: 85vh;
-        border-radius: 20px 20px 0 0;
+        width: 100% !important;
+        max-width: 100% !important;
+        height: 88vh !important;
+        max-height: 88vh !important;
+        border-radius: 24px 24px 0 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        display: flex !important;
+        flex-direction: column !important;
+        transform: translateY(0) !important;
+    }
+    .copilot-header {
+        padding: 12px 14px !important;
+    }
+    .copilot-title {
+        font-size: 14px !important;
+    }
+    .copilot-badge {
+        font-size: 9.5px !important;
+        padding: 2px 6px !important;
+    }
+    .copilot-subtitle {
+        font-size: 10.5px !important;
+    }
+    .copilot-input-bar {
+        padding: 10px 14px max(14px, var(--safe-area-bottom)) 14px !important;
+        background: var(--bg-surface) !important;
+        position: sticky !important;
+        bottom: 0 !important;
+        z-index: 10 !important;
+    }
+    .copilot-input {
+        font-size: 13px !important;
+        padding: 8px 14px !important;
     }
 }
 
