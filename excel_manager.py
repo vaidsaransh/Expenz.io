@@ -187,6 +187,9 @@ def save_budgets(new_budgets, user_id=None):
         wb.save(fp)
         return True
 
+# Backward compatibility alias
+update_budgets = save_budgets
+
 def get_expenses(start_date=None, end_date=None, category=None, search=None, payment_method=None, month=None, user_id=None):
     with _file_lock:
         wb, _ = get_workbook(user_id)

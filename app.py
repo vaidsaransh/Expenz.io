@@ -380,7 +380,7 @@ def telegram_webhook():
 
     try:
         update_json = request.get_json(force=True, silent=True) or {}
-        user_id = request.args.get('user_id') or 'default'
+        user_id = request.args.get('user_id')
         result = telegram_bot.process_telegram_update(update_json, user_id=user_id)
         return jsonify({"ok": True, "result": result})
     except Exception as e:

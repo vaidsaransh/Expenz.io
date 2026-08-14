@@ -144,6 +144,10 @@ class TestExpenseTracker(unittest.TestCase):
         self.client.post('/api/expenses/clear-all')
 
     def test_08_multi_tenant_workspace_isolation(self):
+        # Clear test workspaces first
+        self.client.post('/api/expenses/clear-all', headers={"X-User-Id": "user_alice"})
+        self.client.post('/api/expenses/clear-all', headers={"X-User-Id": "user_bob"})
+
         # User A logs an expense
         self.client.post('/api/expenses', 
             headers={"X-User-Id": "user_alice"},
@@ -173,6 +177,7 @@ class TestExpenseTracker(unittest.TestCase):
         self.client.post('/api/expenses/clear-all', headers={"X-User-Id": "user_bob"})
 
     def test_09_copilot_chat(self):
+        self.client.post('/api/expenses/clear-all', headers={"X-User-Id": "user_copilot_test"})
         # Log sample expense
         self.client.post('/api/expenses', 
             headers={"X-User-Id": "user_copilot_test"},
@@ -194,6 +199,7 @@ class TestExpenseTracker(unittest.TestCase):
 
     def test_10_month_dependent_reset(self):
         uid = "user_month_reset_test"
+        self.client.post('/api/expenses/clear-all', headers={"X-User-Id": uid})
         # Log expenses in July 2026 and August 2026
         self.client.post('/api/expenses', headers={"X-User-Id": uid},
             json={"date": "2026-07-15", "amount": 50.0, "category": "Food & Dining", "description": "July Lunch"}

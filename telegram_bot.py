@@ -251,7 +251,8 @@ def process_telegram_update(update_json, user_id=None):
         msg_id = cb["message"]["message_id"]
         data = cb.get("data", "")
         
-        user_id = user_id or get_user_id_for_chat(chat_id)
+        if not user_id or str(user_id).strip().lower() in ('default', 'none', ''):
+            user_id = get_user_id_for_chat(chat_id)
 
         answer_callback_query(cb_id)
 
@@ -281,7 +282,8 @@ def process_telegram_update(update_json, user_id=None):
     photo_list = message.get("photo")
 
     # Resolve active workspace for this Telegram chat
-    user_id = user_id or get_user_id_for_chat(chat_id)
+    if not user_id or str(user_id).strip().lower() in ('default', 'none', ''):
+        user_id = get_user_id_for_chat(chat_id)
 
     # 2. Workspace Linking Command: /link or /sync
     if text.startswith("/link") or text.startswith("/sync"):
@@ -294,12 +296,15 @@ def process_telegram_update(update_json, user_id=None):
             excel_manager.init_excel(fp)
             
             summary = excel_manager.get_summary_stats(user_id=bound_id)
+            all_time_total = summary.get('total_all_time', 0.0)
+            all_time_count = summary.get('total_transactions_count', 0)
             msg = (
                 f"🔗 *Workspace Linked Successfully!*\n\n"
                 f"Your Telegram bot is now synced to workspace: *`{bound_id}`*\n\n"
                 f"📱 *Cross-Device Active:* All expenses, receipt photos, and Copilot chats are now linked directly to the same ledger as your iPhone and laptop.\n\n"
                 f"📊 *{summary.get('active_month_label', 'Month')} Total:* `${summary.get('current_month_spend', 0.0):,.2f}`\n"
-                f"🎯 *Monthly Budget:* `${summary.get('total_monthly_budget', 0.0):,.2f}`"
+                f"🎯 *Monthly Budget:* `${summary.get('total_monthly_budget', 0.0):,.2f}`\n"
+                f"💰 *All-Time Ledger Total:* `${all_time_total:,.2f}` ({all_time_count} entries)"
             )
             keyboard = {
                 "inline_keyboard": [
@@ -337,7 +342,9 @@ def process_telegram_update(update_json, user_id=None):
     elif text.startswith("/help"):
         return handle_start_command(chat_id, user_id=user_id)
     elif text.startswith("/summary") or text.startswith("/overview"):
-        return handle_summary_command(chat_id, user_id=user_id)
+        parts = text.split(maxsplit=1)
+        month_arg = parts[1].strip() if len(parts) > 1 else None
+        return handle_summary_command(chat_id, user_id=user_id, month_arg=month_arg)
     elif text.startswith("/budget") or text.startswith("/budgets"):
         return handle_budgets_command(chat_id, user_id=user_id)
     elif text.startswith("/recent") or text.startswith("/expenses"):
@@ -345,7 +352,7 @@ def process_telegram_update(update_json, user_id=None):
     elif text.startswith("/insights") or text.startswith("/audit"):
         return handle_insights_command(chat_id, user_id=user_id)
 
-    # 3. Handle Photo / Receipt
+    # 4. Handle Photo / Receipt
     image_bytes = None
     mime_type = None
     if photo_list:
@@ -362,14 +369,18 @@ def process_telegram_update(update_json, user_id=None):
     cat_names = [c["name"] for c in categories]
 
     context_payload = {
-        "active_period": summary.get("active_month_label", "Current Month"),
-        "total_spent": summary.get("current_month_spend", 0.0),
+        "active_period": summary.get("active_month_label", "August 2026"),
+        "total_spent_current_month": summary.get("current_month_spend", 0.0),
         "total_budget": summary.get("total_monthly_budget", 0.0),
         "remaining_budget": summary.get("remaining_budget", 0.0),
         "budget_usage_pct": summary.get("budget_usage_pct", 0.0),
+        "previous_month_spent": summary.get("prev_month_spend", 0.0),
+        "all_time_ledger_total": summary.get("total_all_time", 0.0),
+        "all_time_ledger_count": summary.get("total_transactions_count", 0),
+        "available_months": [m.get("label") for m in summary.get("available_months", [])],
         "category_spending": summary.get("category_breakdown", []),
         "budget_comparison": summary.get("budget_comparison", []),
-        "recent_expenses": all_expenses[:35] if all_expenses else []
+        "recent_expenses": all_expenses[:40] if all_expenses else []
     }
 
     system_prompt = TELEGRAM_MASTER_AI_PROMPT.format(
@@ -580,7 +591,7 @@ def process_telegram_update(update_json, user_id=None):
             if cat_name and new_budget >= 0:
                 current_budgets = excel_manager.get_budgets(user_id=user_id)
                 current_budgets[cat_name] = new_budget
-                excel_manager.update_budgets(current_budgets, user_id=user_id)
+                excel_manager.save_budgets(current_budgets, user_id=user_id)
                 reply = f"🎯 *Budget Updated:* Set *{cat_name}* monthly limit to *${new_budget:,.2f}*."
                 send_telegram_message(chat_id, reply)
                 return {"status": "budget_updated"}
@@ -685,7 +696,8 @@ def execute_confirm_pending_expense(chat_id, message_id, user_id=None):
     return {"status": "pending_confirmed"}
 
 def handle_start_command(chat_id, user_id=None):
-    user_id = user_id or get_user_id_for_chat(chat_id)
+    if not user_id or str(user_id).strip().lower() in ('default', 'none', ''):
+        user_id = get_user_id_for_chat(chat_id)
     summary = excel_manager.get_summary_stats(user_id=user_id)
     month_label = summary.get("active_month_label", "Current Month")
     spend = summary.get("current_month_spend", 0.0)
@@ -731,8 +743,25 @@ def handle_start_command(chat_id, user_id=None):
     send_telegram_message(chat_id, msg, reply_markup=keyboard)
     return {"status": "start_sent"}
 
-def handle_summary_command(chat_id, user_id=None):
-    summary = excel_manager.get_summary_stats(user_id=user_id)
+def handle_summary_command(chat_id, user_id=None, month_arg=None):
+    if not user_id or str(user_id).strip().lower() in ('default', 'none', ''):
+        user_id = get_user_id_for_chat(chat_id)
+
+    target_month = None
+    if month_arg:
+        m_str = str(month_arg).strip().lower()
+        if m_str in ('all', 'all-time', 'alltime'):
+            target_month = 'all'
+        elif 'jul' in m_str:
+            target_month = '2026-07'
+        elif 'aug' in m_str:
+            target_month = '2026-08'
+        elif 'jun' in m_str:
+            target_month = '2026-06'
+        elif re.match(r'^\d{4}-\d{2}$', m_str):
+            target_month = m_str
+
+    summary = excel_manager.get_summary_stats(month=target_month, user_id=user_id)
     month_label = summary.get("active_month_label", "Current Month")
     spend = summary.get("current_month_spend", 0.0)
     budget = summary.get("total_monthly_budget", 0.0)
@@ -772,6 +801,8 @@ def handle_summary_command(chat_id, user_id=None):
 
 def handle_insights_command(chat_id, user_id=None):
     """Generates and delivers structured AI financial health audit directly in Telegram."""
+    if not user_id or str(user_id).strip().lower() in ('default', 'none', ''):
+        user_id = get_user_id_for_chat(chat_id)
     summary = excel_manager.get_summary_stats(user_id=user_id)
     expenses = excel_manager.get_expenses(user_id=user_id)
     
@@ -813,6 +844,8 @@ def handle_insights_command(chat_id, user_id=None):
     return {"status": "insights_sent"}
 
 def handle_budgets_command(chat_id, user_id=None):
+    if not user_id or str(user_id).strip().lower() in ('default', 'none', ''):
+        user_id = get_user_id_for_chat(chat_id)
     summary = excel_manager.get_summary_stats(user_id=user_id)
     comparison = summary.get("budget_comparison", [])
 
