@@ -153,20 +153,11 @@ function initEventListeners() {
         updateProviderHelpUI(e.target.value);
     });
 
-    // WhatsApp Modal Triggers
-    document.getElementById('openWhatsAppModalBtn')?.addEventListener('click', openWhatsAppModal);
-    document.getElementById('closeWhatsAppModalBtn')?.addEventListener('click', closeWhatsAppModal);
-    document.getElementById('closeWhatsAppModalBtn2')?.addEventListener('click', closeWhatsAppModal);
-    document.getElementById('copyWhatsAppWebhookBtn')?.addEventListener('click', () => {
-        const input = document.getElementById('whatsappWebhookUrlInput');
-        if (input && navigator.clipboard) {
-            navigator.clipboard.writeText(input.value).then(() => {
-                showToast('Webhook URL copied to clipboard!', 'success');
-            }).catch(() => {
-                showToast('Webhook URL: ' + input.value, 'info');
-            });
-        }
-    });
+    // Telegram Modal Triggers
+    document.getElementById('openTelegramModalBtn')?.addEventListener('click', openTelegramModal);
+    document.getElementById('closeTelegramModalBtn')?.addEventListener('click', closeTelegramModal);
+    document.getElementById('closeTelegramModalBtn2')?.addEventListener('click', closeTelegramModal);
+    document.getElementById('telegramConfigForm')?.addEventListener('submit', handleTelegramSubmit);
 
     // Initialize Mobile Experience & Navigation
     initMobileExperience();
@@ -1637,23 +1628,80 @@ function updateApiKeyBadge(isConfigured, provider = 'gemini') {
 }
 
 /* ==========================================================================
-   WhatsApp Assistant Modal
+   Telegram Assistant Modal
    ========================================================================== */
-function openWhatsAppModal() {
-    const modal = document.getElementById('whatsappModal');
-    const input = document.getElementById('whatsappWebhookUrlInput');
-    if (input) {
+async function openTelegramModal() {
+    const modal = document.getElementById('telegramModal');
+    if (modal) modal.classList.add('active');
+    await checkTelegramStatus();
+}
+
+function closeTelegramModal() {
+    const modal = document.getElementById('telegramModal');
+    if (modal) modal.classList.remove('active');
+}
+
+async function checkTelegramStatus() {
+    try {
+        const res = await apiFetch('/api/config/telegram');
+        const data = await res.json();
+        const badge = document.getElementById('telegramStatusBadge');
+        const input = document.getElementById('telegramTokenInput');
+        if (data.success && data.configured) {
+            if (badge) {
+                badge.innerHTML = `<i class="fa-solid fa-circle-check text-emerald"></i> Telegram Bot is <strong>Connected & Active</strong> (${data.masked_token}). Text your bot anytime!`;
+            }
+            if (input && !input.value) {
+                input.placeholder = data.masked_token;
+            }
+        }
+    } catch (err) {
+        console.warn('Failed to check Telegram bot status:', err);
+    }
+}
+
+async function handleTelegramSubmit(e) {
+    e.preventDefault();
+    const input = document.getElementById('telegramTokenInput');
+    const token = input ? input.value.trim() : '';
+    const saveBtn = document.getElementById('saveTelegramTokenBtn');
+
+    if (!token) {
+        showToast('Please enter a valid Telegram Bot Token from @BotFather', 'error');
+        return;
+    }
+
+    if (saveBtn) {
+        saveBtn.disabled = true;
+        saveBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Connecting...';
+    }
+
+    try {
         const origin = window.location.origin.includes('localhost') || window.location.origin.includes('127.0.0.1')
             ? 'https://expenz-io.onrender.com'
             : window.location.origin;
-        input.value = `${origin}/api/whatsapp/webhook`;
-    }
-    if (modal) modal.classList.add('active');
-}
 
-function closeWhatsAppModal() {
-    const modal = document.getElementById('whatsappModal');
-    if (modal) modal.classList.remove('active');
+        const res = await apiFetch('/api/config/telegram', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token: token, domain: origin })
+        });
+        const data = await res.json();
+
+        if (data.success) {
+            showToast('🎉 Telegram Bot Connected! You can now text receipts & expenses.', 'success');
+            await checkTelegramStatus();
+        } else {
+            showToast(data.error || 'Failed to connect Telegram bot', 'error');
+        }
+    } catch (err) {
+        showToast('Error connecting bot: ' + err.message, 'error');
+    } finally {
+        if (saveBtn) {
+            saveBtn.disabled = false;
+            saveBtn.innerHTML = '<i class="fa-solid fa-link"></i> Connect Bot';
+        }
+    }
 }
 
 /* ==========================================================================
@@ -1905,9 +1953,9 @@ function initMobileExperience() {
         openInsightsModal();
     });
 
-    document.getElementById('mobActionOpenWhatsApp')?.addEventListener('click', () => {
+    document.getElementById('mobActionOpenTelegram')?.addEventListener('click', () => {
         if (aiSheet) aiSheet.classList.remove('active');
-        openWhatsAppModal();
+        openTelegramModal();
     });
 
     document.getElementById('mobActionConfigureKey')?.addEventListener('click', () => {

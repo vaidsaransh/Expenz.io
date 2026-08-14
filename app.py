@@ -2,7 +2,7 @@ import os
 from flask import Flask, render_template, request, jsonify, send_file, Response
 import excel_manager
 import gemini_parser
-import whatsapp_bot
+import telegram_bot
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'modern-expense-tracker-secret-key-2026'
@@ -368,33 +368,59 @@ def download_excel():
         )
     return jsonify({"error": "File not found"}), 404
 
-@app.route('/api/whatsapp/webhook', methods=['GET', 'POST'])
-def whatsapp_webhook():
+@app.route('/api/telegram/webhook', methods=['GET', 'POST'])
+def telegram_webhook():
     if request.method == 'GET':
+        bot_token = telegram_bot.get_telegram_bot_token()
         return jsonify({
             "status": "online",
-            "service": "Expenz.io WhatsApp AI Webhook",
-            "usage": "Point your Twilio WhatsApp Sandbox webhook to this URL via HTTP POST."
+            "service": "Expenz.io Telegram Bot Webhook",
+            "configured": bool(bot_token)
         })
 
     try:
-        from_number = request.form.get('From', '')
-        body = request.form.get('Body', '')
-        media_url = request.form.get('MediaUrl0')
-        media_type = request.form.get('MediaContentType0')
+        update_json = request.get_json(force=True, silent=True) or {}
         user_id = request.args.get('user_id') or 'default'
-
-        twiml_xml = whatsapp_bot.process_whatsapp_message(
-            from_number=from_number,
-            body_text=body,
-            media_url=media_url,
-            media_content_type=media_type,
-            user_id=user_id
-        )
-        return Response(twiml_xml, mimetype='application/xml')
+        result = telegram_bot.process_telegram_update(update_json, user_id=user_id)
+        return jsonify({"ok": True, "result": result})
     except Exception as e:
-        err_reply = whatsapp_bot.generate_twiml_response(f"❌ Error processing message: {str(e)}")
-        return Response(err_reply, mimetype='application/xml')
+        print(f"Telegram webhook error: {e}")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+@app.route('/api/config/telegram', methods=['GET', 'POST'])
+def manage_telegram_config():
+    if request.method == 'GET':
+        token = telegram_bot.get_telegram_bot_token()
+        masked = f"{token[:6]}...{token[-4:]}" if len(token) >= 10 else ("Configured" if token else "")
+        return jsonify({
+            "success": True,
+            "configured": bool(token),
+            "masked_token": masked
+        })
+    else:
+        try:
+            data = request.get_json() or {}
+            token = str(data.get("token", "")).strip()
+            webhook_domain = str(data.get("domain", "")).strip()
+
+            if not token:
+                return jsonify({"success": False, "error": "Telegram Bot Token cannot be empty"}), 400
+
+            telegram_bot.save_telegram_bot_token(token)
+
+            # Auto-register webhook with Telegram if domain provided
+            if webhook_domain:
+                webhook_url = f"{webhook_domain.rstrip('/')}/api/telegram/webhook"
+                hook_res = telegram_bot.set_telegram_webhook(token, webhook_url)
+                return jsonify({
+                    "success": True,
+                    "message": "Telegram Bot Token saved and webhook registered successfully!",
+                    "webhook_result": hook_res
+                })
+
+            return jsonify({"success": True, "message": "Telegram Bot Token saved successfully!"})
+        except Exception as e:
+            return jsonify({"success": False, "error": str(e)}), 500
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5001))

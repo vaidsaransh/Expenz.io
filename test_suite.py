@@ -226,37 +226,55 @@ class TestExpenseTracker(unittest.TestCase):
         res_empty = self.client.get('/api/expenses', headers={"X-User-Id": uid})
         self.assertEqual(res_empty.get_json()["pagination"]["total_items"], 0)
 
-    def test_11_whatsapp_webhook_get(self):
-        res = self.client.get('/api/whatsapp/webhook')
+    def test_11_telegram_webhook_get(self):
+        res = self.client.get('/api/telegram/webhook')
         self.assertEqual(res.status_code, 200)
         data = res.get_json()
         self.assertEqual(data["status"], "online")
 
-    def test_12_whatsapp_help_command(self):
-        res = self.client.post('/api/whatsapp/webhook', data={
-            "From": "whatsapp:+14155552671",
-            "Body": "help"
+    def test_12_telegram_start_command(self):
+        res = self.client.post('/api/telegram/webhook', json={
+            "message": {
+                "chat": {"id": 999999},
+                "text": "/start"
+            }
         })
         self.assertEqual(res.status_code, 200)
-        self.assertIn("<Response>", res.data.decode())
-        self.assertIn("Welcome to Expenz.io on WhatsApp", res.data.decode())
+        data = res.get_json()
+        self.assertTrue(data["ok"])
 
-    def test_13_whatsapp_log_expense_and_sync(self):
-        uid = "user_wa_test"
-        res = self.client.post(f'/api/whatsapp/webhook?user_id={uid}', data={
-            "From": "whatsapp:+14155552671",
-            "Body": "Spent $28.50 at Chipotle on Amex for burritos"
+    def test_13_telegram_log_expense_and_sync(self):
+        uid = "user_tg_test"
+        res = self.client.post(f'/api/telegram/webhook?user_id={uid}', json={
+            "message": {
+                "chat": {"id": 999999},
+                "text": "Spent $28.50 at Chipotle on Amex for burritos"
+            }
         })
         self.assertEqual(res.status_code, 200)
-        self.assertIn("<Response>", res.data.decode())
-        
+        data = res.get_json()
+        self.assertTrue(data["ok"])
+
         # Verify expense was logged in Excel
         exp_res = self.client.get(f'/api/expenses?user_id={uid}')
         exp_data = exp_res.get_json()
         self.assertGreaterEqual(exp_data["pagination"]["total_items"], 1)
-        
+
         # Clean up
         self.client.post(f'/api/expenses/clear-all?user_id={uid}')
+
+    def test_14_telegram_config_endpoint(self):
+        # Save token
+        post_res = self.client.post('/api/config/telegram', json={
+            "token": "123456789:TEST_BOT_TOKEN_ABC"
+        })
+        self.assertEqual(post_res.status_code, 200)
+        
+        # Get status
+        get_res = self.client.get('/api/config/telegram')
+        self.assertEqual(get_res.status_code, 200)
+        data = get_res.get_json()
+        self.assertTrue(data["configured"])
 
 if __name__ == '__main__':
     unittest.main()
