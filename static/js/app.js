@@ -940,17 +940,30 @@ function renderCharts(summary) {
    ========================================================================== */
 function renderExpensesTable(expenses) {
     const tbody = document.getElementById('expensesTableBody');
-    if (!tbody) return;
+    const mobileCardsContainer = document.getElementById('mobileTxnsCardsContainer');
 
     if (!expenses || expenses.length === 0) {
-        tbody.innerHTML = `
-            <tr>
-                <td colspan="7" class="table-empty-state">
-                    <i class="fa-solid fa-inbox" style="font-size: 24px; margin-bottom: 8px; display: block; opacity: 0.5;"></i>
-                    No expense records found. Try logging a new expense, uploading a statement, or clearing filters!
-                </td>
-            </tr>
-        `;
+        if (tbody) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="7" class="table-empty-state">
+                        <i class="fa-solid fa-inbox" style="font-size: 24px; margin-bottom: 8px; display: block; opacity: 0.5;"></i>
+                        No expense records found. Try logging a new expense, uploading a statement, or clearing filters!
+                    </td>
+                </tr>
+            `;
+        }
+        if (mobileCardsContainer) {
+            mobileCardsContainer.innerHTML = `
+                <div class="mobile-empty-state">
+                    <div class="empty-icon-circle">
+                        <i class="fa-solid fa-receipt"></i>
+                    </div>
+                    <h4>No expenses found</h4>
+                    <p>Log an expense or upload a statement to start tracking your finances.</p>
+                </div>
+            `;
+        }
         return;
     }
 
@@ -959,41 +972,86 @@ function renderExpensesTable(expenses) {
         catMetaMap[c.name] = c;
     });
 
-    tbody.innerHTML = expenses.map(item => {
-        const meta = catMetaMap[item.category] || { color: '#64748B', icon: 'tags' };
-        const paymentIcon = getPaymentIcon(item.payment_method);
+    if (tbody) {
+        tbody.innerHTML = expenses.map(item => {
+            const meta = catMetaMap[item.category] || { color: '#64748B', icon: 'tags' };
+            const paymentIcon = getPaymentIcon(item.payment_method);
 
-        return `
-            <tr data-id="${item.id}">
-                <td class="td-id">#${item.id}</td>
-                <td class="td-date">${item.date}</td>
-                <td class="td-desc">${escapeHtml(item.description || 'No description')}</td>
-                <td>
-                    <span class="category-pill" style="background-color: ${meta.color}20; color: ${meta.color}; border: 1px solid ${meta.color}40;">
-                        <i class="fa-solid fa-${meta.icon}"></i>
-                        ${escapeHtml(item.category)}
-                    </span>
-                </td>
-                <td>
-                    <span class="payment-badge">
-                        <i class="${paymentIcon}"></i>
-                        ${escapeHtml(item.payment_method)}
-                    </span>
-                </td>
-                <td class="td-amount text-right">${formatCurrency(item.amount)}</td>
-                <td class="text-center">
-                    <div class="table-row-actions">
-                        <button class="btn-action-icon" title="Edit Expense" onclick="openExpenseModal(${item.id})">
-                            <i class="fa-solid fa-pencil"></i>
-                        </button>
-                        <button class="btn-action-icon btn-delete" title="Delete Expense" onclick="handleDeleteExpense(${item.id})">
-                            <i class="fa-solid fa-trash-can"></i>
-                        </button>
+            return `
+                <tr data-id="${item.id}">
+                    <td class="td-id">#${item.id}</td>
+                    <td class="td-date">${item.date}</td>
+                    <td class="td-desc">${escapeHtml(item.description || 'No description')}</td>
+                    <td>
+                        <span class="category-pill" style="background-color: ${meta.color}20; color: ${meta.color}; border: 1px solid ${meta.color}40;">
+                            <i class="fa-solid fa-${meta.icon}"></i>
+                            ${escapeHtml(item.category)}
+                        </span>
+                    </td>
+                    <td>
+                        <span class="payment-badge">
+                            <i class="${paymentIcon}"></i>
+                            ${escapeHtml(item.payment_method)}
+                        </span>
+                    </td>
+                    <td class="td-amount text-right">${formatCurrency(item.amount)}</td>
+                    <td class="text-center">
+                        <div class="table-row-actions">
+                            <button class="btn-action-icon" title="Edit Expense" onclick="openExpenseModal(${item.id})">
+                                <i class="fa-solid fa-pencil"></i>
+                            </button>
+                            <button class="btn-action-icon btn-delete" title="Delete Expense" onclick="handleDeleteExpense(${item.id})">
+                                <i class="fa-solid fa-trash-can"></i>
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+    }
+
+    if (mobileCardsContainer) {
+        mobileCardsContainer.innerHTML = expenses.map(item => {
+            const meta = catMetaMap[item.category] || { color: '#64748B', icon: 'tags' };
+            const paymentIcon = getPaymentIcon(item.payment_method);
+
+            return `
+                <div class="mobile-txn-card" data-id="${item.id}">
+                    <div class="txn-card-header">
+                        <div class="txn-card-cat-wrap">
+                            <div class="txn-cat-badge" style="background-color: ${meta.color}20; color: ${meta.color};">
+                                <i class="fa-solid fa-${meta.icon}"></i>
+                            </div>
+                            <div class="txn-cat-title-group">
+                                <span class="txn-cat-name" style="color: ${meta.color};">${escapeHtml(item.category)}</span>
+                                <span class="txn-date-tag">${item.date}</span>
+                            </div>
+                        </div>
+                        <div class="txn-amount-badge">
+                            -${formatCurrency(item.amount)}
+                        </div>
                     </div>
-                </td>
-            </tr>
-        `;
-    }).join('');
+                    <div class="txn-card-body">
+                        <h4 class="txn-card-desc">${escapeHtml(item.description || 'No description')}</h4>
+                    </div>
+                    <div class="txn-card-footer">
+                        <span class="txn-payment-pill">
+                            <i class="${paymentIcon}"></i>
+                            ${escapeHtml(item.payment_method)}
+                        </span>
+                        <div class="txn-actions-pill-group">
+                            <button class="btn-mob-action" title="Edit" onclick="openExpenseModal(${item.id})">
+                                <i class="fa-solid fa-pencil"></i>
+                            </button>
+                            <button class="btn-mob-action btn-mob-del" title="Delete" onclick="handleDeleteExpense(${item.id})">
+                                <i class="fa-solid fa-trash-can"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
 }
 
 function getPaymentIcon(method) {
