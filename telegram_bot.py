@@ -468,6 +468,9 @@ def process_telegram_update(update_json, user_id=None):
 
                 budget_info = f"\n🎯 *Category Budget:* ${cat_spend:,.2f} / ${cat_budget:,.2f}" if cat_budget > 0 else ""
 
+                all_time_total = new_summary.get('total_all_time', 0.0)
+                all_time_count = new_summary.get('total_transactions_count', 0)
+
                 reply = (
                     f"✅ *Expense Logged to Excel!*\n\n"
                     f"💳 *Amount:* `${amt_val:,.2f}`\n"
@@ -477,7 +480,8 @@ def process_telegram_update(update_json, user_id=None):
                     f"💵 *Payment:* {pay_val}"
                     f"{budget_info}\n\n"
                     f"📊 *{new_summary.get('active_month_label', 'Month')} Total:* `${new_summary.get('current_month_spend', 0.0):,.2f}` "
-                    f"(Remaining: *${new_summary.get('remaining_budget', 0.0):,.2f}*)"
+                    f"(Remaining: *${new_summary.get('remaining_budget', 0.0):,.2f}*)\n"
+                    f"💰 *All-Time Ledger Total:* `${all_time_total:,.2f}` ({all_time_count} entries)"
                 )
 
                 keyboard = {
@@ -650,6 +654,9 @@ def execute_confirm_pending_expense(chat_id, message_id, user_id=None):
 
     budget_info = f"\n🎯 *Category Budget:* ${cat_spend:,.2f} / ${cat_budget:,.2f}" if cat_budget > 0 else ""
 
+    all_time_total = new_summary.get('total_all_time', 0.0)
+    all_time_count = new_summary.get('total_transactions_count', 0)
+
     confirmed_text = (
         f"✅ *Confirmed & Logged to Excel!*\n\n"
         f"💳 *Amount:* `${amt_val:,.2f}`\n"
@@ -659,7 +666,8 @@ def execute_confirm_pending_expense(chat_id, message_id, user_id=None):
         f"💵 *Payment:* {pay_val}"
         f"{budget_info}\n\n"
         f"📊 *{new_summary.get('active_month_label', 'Month')} Total:* `${new_summary.get('current_month_spend', 0.0):,.2f}` "
-        f"(Remaining: *${new_summary.get('remaining_budget', 0.0):,.2f}*)"
+        f"(Remaining: *${new_summary.get('remaining_budget', 0.0):,.2f}*)\n"
+        f"💰 *All-Time Ledger Total:* `${all_time_total:,.2f}` ({all_time_count} entries)"
     )
 
     keyboard = {
