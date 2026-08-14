@@ -204,6 +204,26 @@ def upload_statement():
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
+@app.route('/api/insights', methods=['POST', 'GET'])
+def generate_insights():
+    try:
+        month = request.args.get('month') or (request.get_json() or {}).get('month')
+        summary = excel_manager.get_summary_stats(month=month)
+        expenses = excel_manager.get_expenses(month=summary.get("active_month"))
+        
+        insights = gemini_parser.generate_financial_insights(
+            month_label=summary.get("active_month_label", "Selected Month"),
+            summary_data=summary,
+            expenses_data=expenses
+        )
+        return jsonify({
+            "success": True,
+            "period": summary.get("active_month_label"),
+            "data": insights
+        })
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
 @app.route('/download-excel')
 def download_excel():
     excel_path = excel_manager.EXCEL_FILE

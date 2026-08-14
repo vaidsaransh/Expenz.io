@@ -113,6 +113,31 @@ function initEventListeners() {
         fetchExpenses();
     });
 
+    // Dashboard Category Filter
+    document.getElementById('dashboardCategoryFilter')?.addEventListener('change', (e) => {
+        state.filters.category = e.target.value;
+        const tblFilter = document.getElementById('tableCategoryFilter');
+        if (tblFilter) tblFilter.value = e.target.value;
+        state.pagination.page = 1;
+        fetchExpenses();
+    });
+
+    // Table Category Filter sync with Dashboard Category Filter
+    document.getElementById('tableCategoryFilter')?.addEventListener('change', (e) => {
+        state.filters.category = e.target.value;
+        const dashFilter = document.getElementById('dashboardCategoryFilter');
+        if (dashFilter) dashFilter.value = e.target.value;
+        state.pagination.page = 1;
+        fetchExpenses();
+    });
+
+    // AI Financial Insights Triggers
+    document.getElementById('openInsightsModalBtn')?.addEventListener('click', openInsightsModal);
+    document.getElementById('triggerInsightsBottomBtn')?.addEventListener('click', openInsightsModal);
+    document.getElementById('closeInsightsModalBtn')?.addEventListener('click', closeInsightsModal);
+    document.getElementById('closeInsightsModalBtn2')?.addEventListener('click', closeInsightsModal);
+    document.getElementById('regenerateInsightsBtn')?.addEventListener('click', loadFinancialInsights);
+
     // Reset / Clear All Expenses Action
     document.getElementById('clearAllExpensesBtn')?.addEventListener('click', handleClearAllExpenses);
 
@@ -500,6 +525,7 @@ function populateCategoryDropdowns(categories) {
     const quickSelect = document.getElementById('quickCategory');
     const modalSelect = document.getElementById('modalCategory');
     const tableFilter = document.getElementById('tableCategoryFilter');
+    const dashCategoryFilter = document.getElementById('dashboardCategoryFilter');
 
     if (quickSelect) {
         quickSelect.innerHTML = '<option value="" disabled selected>Category</option>';
@@ -519,6 +545,13 @@ function populateCategoryDropdowns(categories) {
         tableFilter.innerHTML = '<option value="all">All Categories</option>';
         categories.forEach(c => {
             tableFilter.innerHTML += `<option value="${c.name}">${c.name}</option>`;
+        });
+    }
+
+    if (dashCategoryFilter) {
+        dashCategoryFilter.innerHTML = '<option value="all">All Categories</option>';
+        categories.forEach(c => {
+            dashCategoryFilter.innerHTML += `<option value="${c.name}">${c.name}</option>`;
         });
     }
 }
@@ -546,6 +579,11 @@ async function fetchSummary() {
             const activeLabelEl = document.getElementById('activePeriodLabel');
             if (activeLabelEl) {
                 activeLabelEl.textContent = `${data.data.active_month_label} Overview`;
+            }
+
+            const insightsPeriodLabel = document.getElementById('insightsPeriodLabel');
+            if (insightsPeriodLabel) {
+                insightsPeriodLabel.textContent = data.data.active_month_label;
             }
         }
     } catch (err) {
@@ -1269,6 +1307,150 @@ function showToast(message, type = 'success') {
         toast.style.transition = 'all 0.3s ease';
         setTimeout(() => toast.remove(), 300);
     }, 4000);
+}
+
+/* ==========================================================================
+   AI Financial Insights Modal
+   ========================================================================== */
+function openInsightsModal() {
+    const modal = document.getElementById('insightsModal');
+    if (!modal) return;
+    modal.classList.add('active');
+    loadFinancialInsights();
+}
+
+function closeInsightsModal() {
+    const modal = document.getElementById('insightsModal');
+    if (modal) modal.classList.remove('active');
+}
+
+async function loadFinancialInsights() {
+    const loadingState = document.getElementById('insightsLoadingState');
+    const contentState = document.getElementById('insightsContentState');
+    const subtitle = document.getElementById('insightsModalSubtitle');
+    const regenBtn = document.getElementById('regenerateInsightsBtn');
+
+    if (loadingState) loadingState.style.display = 'flex';
+    if (contentState) contentState.style.display = 'none';
+    if (regenBtn) regenBtn.disabled = true;
+
+    try {
+        const monthParam = state.selectedMonth || 'auto';
+        const res = await fetch(`/api/insights?month=${encodeURIComponent(monthParam)}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ month: monthParam })
+        });
+        const data = await res.json();
+
+        if (data.success && data.data) {
+            if (subtitle) subtitle.textContent = `Intelligent spending analysis for ${data.period || 'selected month'}`;
+            renderInsightsContent(data.data);
+            if (loadingState) loadingState.style.display = 'none';
+            if (contentState) contentState.style.display = 'block';
+        } else {
+            showToast(data.error || 'Failed to generate insights', 'error');
+            closeInsightsModal();
+        }
+    } catch (err) {
+        showToast('Error generating insights: ' + err.message, 'error');
+        closeInsightsModal();
+    } finally {
+        if (regenBtn) regenBtn.disabled = false;
+    }
+}
+
+function renderInsightsContent(insights) {
+    const container = document.getElementById('insightsContentState');
+    if (!container) return;
+
+    const score = insights.health_score || 80;
+    const scoreColor = score >= 80 ? 'linear-gradient(135deg, #10b981, #06b6d4)' : score >= 60 ? 'linear-gradient(135deg, #f59e0b, #ec4899)' : 'linear-gradient(135deg, #f43f5e, #8b5cf6)';
+    const status = escapeHtml(insights.status || 'Healthy');
+    const headline = escapeHtml(insights.headline || 'Your spending is well balanced this month.');
+
+    const observationsHtml = (insights.observations || []).map(obs => 
+        `<li><i class="fa-solid fa-circle-info text-cyan"></i> <span>${escapeHtml(obs)}</span></li>`
+    ).join('');
+
+    const recommendationsHtml = (insights.recommendations || []).map(rec => 
+        `<li><i class="fa-solid fa-lightbulb text-accent"></i> <span>${escapeHtml(rec)}</span></li>`
+    ).join('');
+
+    const alertsHtml = (insights.alerts && insights.alerts.length > 0) ? `
+        <div class="insight-block" style="margin-bottom: 20px; border-color: rgba(244, 63, 94, 0.3); background: rgba(244, 63, 94, 0.05);">
+            <div class="insight-block-title" style="color: var(--accent-rose);">
+                <i class="fa-solid fa-triangle-exclamation text-rose"></i>
+                <span>Budget Alerts & Overages</span>
+            </div>
+            <ul class="insight-list">
+                ${insights.alerts.map(a => `<li><i class="fa-solid fa-circle-exclamation text-rose"></i> <span>${escapeHtml(a)}</span></li>`).join('')}
+            </ul>
+        </div>
+    ` : '';
+
+    const savingsVal = parseFloat(insights.projected_monthly_savings) || 0;
+
+    container.innerHTML = `
+        <div class="insights-header-card">
+            <div class="score-dial-wrap">
+                <div class="score-dial" style="background: ${scoreColor};">
+                    ${score}
+                </div>
+                <div class="score-meta">
+                    <strong>Financial Health: <span style="color: ${score >= 80 ? 'var(--accent-emerald)' : 'var(--accent-rose)'};">${status}</span></strong>
+                    <span>Calculated by budget discipline & spend pacing</span>
+                </div>
+            </div>
+            <div class="badge-tech">
+                <i class="fa-solid fa-wand-magic-sparkles text-accent"></i> Gemini 3.5 Flash
+            </div>
+        </div>
+
+        <div class="insights-headline-box">
+            <i class="fa-solid fa-quote-left" style="opacity: 0.5; margin-right: 6px;"></i>
+            ${headline}
+        </div>
+
+        ${alertsHtml}
+
+        <div class="insights-grid-2">
+            <div class="insight-block">
+                <div class="insight-block-title">
+                    <i class="fa-solid fa-chart-line text-blue"></i>
+                    <span>Key Spending Trends</span>
+                </div>
+                <ul class="insight-list">
+                    ${observationsHtml || '<li>No notable anomalies detected.</li>'}
+                </ul>
+            </div>
+
+            <div class="insight-block">
+                <div class="insight-block-title">
+                    <i class="fa-solid fa-piggy-bank text-emerald"></i>
+                    <span>Actionable Recommendations</span>
+                </div>
+                <ul class="insight-list">
+                    ${recommendationsHtml || '<li>Keep maintaining your daily budget tracking!</li>'}
+                </ul>
+            </div>
+        </div>
+
+        ${savingsVal > 0 ? `
+        <div class="savings-highlight-card">
+            <div class="savings-highlight-left">
+                <div class="insights-icon-circle" style="width: 44px; height: 44px; font-size: 18px; background: var(--accent-emerald);">
+                    <i class="fa-solid fa-hand-holding-dollar"></i>
+                </div>
+                <div>
+                    <strong style="color: var(--text-primary); font-size: 14px;">Projected Monthly Savings</strong>
+                    <p style="color: var(--text-muted); font-size: 12px; margin: 0;">Estimated savings by executing recommendations</p>
+                </div>
+            </div>
+            <div class="savings-amount-val">+${formatCurrency(savingsVal)} / mo</div>
+        </div>
+        ` : ''}
+    `;
 }
 
 /* ==========================================================================

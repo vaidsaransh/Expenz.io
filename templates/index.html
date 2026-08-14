@@ -98,11 +98,22 @@
             <div class="controls-right">
                 <div class="month-selector-wrap">
                     <i class="fa-solid fa-calendar-days text-accent"></i>
-                    <label for="dashboardMonthSelector" class="selector-label">Filter Month:</label>
+                    <label for="dashboardMonthSelector" class="selector-label">Month:</label>
                     <select id="dashboardMonthSelector" class="month-dropdown">
                         <option value="auto">Auto (Latest Active)</option>
                     </select>
                 </div>
+                <div class="month-selector-wrap">
+                    <i class="fa-solid fa-layer-group text-secondary"></i>
+                    <label for="dashboardCategoryFilter" class="selector-label">Category:</label>
+                    <select id="dashboardCategoryFilter" class="month-dropdown">
+                        <option value="all">All Categories</option>
+                    </select>
+                </div>
+                <button class="btn btn-ai-sparkle btn-icon" id="openInsightsModalBtn" title="Generate AI Insights for selected month">
+                    <i class="fa-solid fa-brain"></i>
+                    <span>AI Insights</span>
+                </button>
             </div>
         </section>
 
@@ -387,6 +398,25 @@
             </div>
         </section>
 
+        <!-- AI Financial Insights Banner Section -->
+        <section class="insights-banner-card glass-card">
+            <div class="insights-banner-left">
+                <div class="insights-icon-circle icon-ai-sparkle">
+                    <i class="fa-solid fa-wand-magic-sparkles"></i>
+                </div>
+                <div class="insights-banner-content">
+                    <h3 class="insights-banner-title"><i class="fa-solid fa-brain text-accent"></i> Smart AI Financial Advisor</h3>
+                    <p class="insights-banner-desc">Get instant personalized budget intelligence, overspending flags, and money-saving recommendations for <strong id="insightsPeriodLabel">Current Month</strong> powered by Gemini AI.</p>
+                </div>
+            </div>
+            <div class="insights-banner-right">
+                <button class="btn btn-ai-sparkle btn-icon btn-lg glow-button" id="triggerInsightsBottomBtn">
+                    <i class="fa-solid fa-bolt-lightning"></i>
+                    <span>Generate AI Insights</span>
+                </button>
+            </div>
+        </section>
+
         <!-- Modern Branded Footer -->
         <footer class="app-footer glass-card">
             <div class="footer-left">
@@ -645,6 +675,48 @@
                         <span id="confirmImportBtnText">Import to Excel</span>
                     </button>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL 4: AI Financial Insights Modal -->
+    <div class="modal-backdrop" id="insightsModal">
+        <div class="modal-dialog modal-lg glass-card">
+            <div class="modal-header">
+                <div class="modal-title-wrap">
+                    <div class="modal-icon-badge icon-ai-sparkle">
+                        <i class="fa-solid fa-brain"></i>
+                    </div>
+                    <div>
+                        <h3 class="modal-title">AI Financial Advisor & Spending Insights</h3>
+                        <p class="modal-subtitle" id="insightsModalSubtitle">Analyzing budget vs. actual expenses with Gemini AI</p>
+                    </div>
+                </div>
+                <button class="modal-close-btn" id="closeInsightsModalBtn">&times;</button>
+            </div>
+
+            <div class="insights-modal-body" id="insightsModalBody">
+                <!-- Loading State -->
+                <div class="ai-processing-container" id="insightsLoadingState" style="display: none;">
+                    <div class="ai-pulse-ring">
+                        <i class="fa-solid fa-brain"></i>
+                    </div>
+                    <h4 class="processing-title">Gemini AI is analyzing your finances...</h4>
+                    <p class="processing-subtitle">Examining category limits, recurring spending trends, and budget health score</p>
+                </div>
+
+                <!-- Content State -->
+                <div class="insights-content" id="insightsContentState">
+                    <!-- Populated dynamically via JS -->
+                </div>
+            </div>
+
+            <div class="modal-actions" style="padding: 16px 24px;">
+                <button type="button" class="btn btn-secondary" id="closeInsightsModalBtn2">Close</button>
+                <button type="button" class="btn btn-ai-sparkle btn-icon" id="regenerateInsightsBtn">
+                    <i class="fa-solid fa-arrows-rotate"></i>
+                    <span>Re-Analyze</span>
+                </button>
             </div>
         </div>
     </div>

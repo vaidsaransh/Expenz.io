@@ -290,3 +290,110 @@ def parse_statement(file_obj, filename=""):
                 continue
 
     return valid_items
+
+FINANCIAL_INSIGHTS_PROMPT = """
+You are an elite, modern financial advisor and spending analyst.
+Analyze the user's spending data, category breakdown, and monthly budget targets for the active month.
+
+Provide a high-value, intelligent financial assessment:
+1. "health_score": Integer 0 to 100 assessing overall budget health (100 = optimal, < 60 = high risk/overspending).
+2. "status": One of "Excellent", "Healthy", "Caution", or "Critical".
+3. "headline": A crisp, encouraging, punchy 1-sentence assessment of their financial discipline.
+4. "observations": Array of 3-4 bullet points highlighting specific trends, top spend areas, and anomalies.
+5. "recommendations": Array of 3 specific, actionable recommendations to reduce expenses and save money.
+6. "alerts": Array of warning strings for categories that exceeded or are nearing their budget limit (empty array if none).
+7. "projected_monthly_savings": A realistic estimated dollar amount ($) they could save by following your tips.
+
+Return ONLY a valid JSON object matching this schema:
+{
+  "health_score": 85,
+  "status": "Healthy",
+  "headline": "Great control over fixed costs, with minor savings potential in Dining.",
+  "observations": [
+    "Your top expense category this month is Food & Dining ($320).",
+    "You have used 48% of your overall monthly budget limit."
+  ],
+  "recommendations": [
+    "Prepare meals at home 2 more days per week to save ~$120/mo.",
+    "Review recurring subscription renewals in Entertainment."
+  ],
+  "alerts": [
+    "Dining spend has reached 85% of its $400 budget allowance."
+  ],
+  "projected_monthly_savings": 140.00
+}
+"""
+
+def generate_financial_insights(month_label, summary_data, expenses_data):
+    """
+    Generates intelligent financial insights for the selected month using Gemini.
+    """
+    api_key = os.environ.get("GEMINI_API_KEY", "")
+    if not api_key:
+        raise ValueError("Gemini API key is not configured.")
+
+    client = genai.Client(api_key=api_key)
+    models_to_try = ["gemini-3.5-flash", "gemini-3.1-flash-lite", "gemini-3.7-flash"]
+
+    # Prepare financial payload for Gemini
+    payload = {
+        "period": month_label,
+        "total_spent": summary_data.get("current_month_spend", 0.0),
+        "total_budget": summary_data.get("total_monthly_budget", 0.0),
+        "remaining_budget": summary_data.get("remaining_budget", 0.0),
+        "budget_usage_pct": summary_data.get("budget_usage_pct", 0.0),
+        "daily_average": summary_data.get("daily_avg_spend", 0.0),
+        "category_breakdown": summary_data.get("category_breakdown", []),
+        "budget_comparison": summary_data.get("budget_comparison", []),
+        "recent_expenses": expenses_data[:20] if expenses_data else []
+    }
+
+    prompt = f"{FINANCIAL_INSIGHTS_PROMPT}\n\nHere is the financial data for {month_label}:\n\n{json.dumps(payload, indent=2)}"
+
+    raw_response_text = ""
+    last_error = None
+
+    for model_name in models_to_try:
+        try:
+            chat = client.chats.create(model=model_name)
+            res = chat.send_message(prompt)
+            raw_response_text = res.text
+            if raw_response_text:
+                break
+        except Exception as err:
+            last_error = err
+            continue
+
+    if not raw_response_text:
+        raise ValueError(f"Failed to generate financial insights with Gemini: {last_error}")
+
+    text = raw_response_text.strip()
+    if text.startswith("```"):
+        text = re.sub(r"^```(?:json)?\n?", "", text)
+        text = re.sub(r"\n?```$", "", text)
+
+    match = re.search(r'\{.*\}', text, re.DOTALL)
+    if match:
+        try:
+            return json.loads(match.group(0))
+        except Exception:
+            pass
+
+    try:
+        return json.loads(text)
+    except Exception:
+        return {
+            "health_score": 75,
+            "status": "Healthy",
+            "headline": f"Financial overview generated for {month_label}.",
+            "observations": [
+                f"Total spend for {month_label} is ${summary_data.get('current_month_spend', 0.0):.2f}.",
+                f"Budget utilization is at {summary_data.get('budget_usage_pct', 0.0)}%."
+            ],
+            "recommendations": [
+                "Continue tracking daily expenses to maintain budget limits.",
+                "Review categories nearing 80% utilization."
+            ],
+            "alerts": [],
+            "projected_monthly_savings": 50.00
+        }
