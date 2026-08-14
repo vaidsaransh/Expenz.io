@@ -1673,24 +1673,270 @@ body {
     70% { transform: scale(1); }
 }
 
-.footer-right {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    flex-wrap: wrap;
+/* ==========================================================================
+   Mobile & Safari iOS Optimization (iPhone 15 Pro, iPads, Responsive)
+   ========================================================================== */
+:root {
+    --safe-area-top: env(safe-area-inset-top, 0px);
+    --safe-area-bottom: env(safe-area-inset-bottom, 0px);
+    --safe-area-left: env(safe-area-inset-left, 0px);
+    --safe-area-right: env(safe-area-inset-right, 0px);
 }
 
-.badge-tech {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    font-size: 11.5px;
-    font-weight: 600;
-    background: var(--bg-surface);
-    border: 1px solid var(--bg-card-border);
-    padding: 4px 10px;
-    border-radius: var(--radius-sm);
-    color: var(--text-secondary);
+body {
+    -webkit-text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
 }
+
+.app-container {
+    padding-top: max(16px, var(--safe-area-top));
+    padding-bottom: max(32px, var(--safe-area-bottom));
+    padding-left: max(16px, var(--safe-area-left));
+    padding-right: max(16px, var(--safe-area-right));
+}
+
+/* Tablet & Mobile Screens (< 1024px) */
+@media (max-width: 1024px) {
+    .metrics-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .charts-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .chart-card.span-2 {
+        grid-column: span 1;
+    }
+}
+
+/* Mobile Screens (< 768px) - iPhone & Android Phones */
+@media (max-width: 768px) {
+    /* Prevent iOS Safari from zooming in on input tap */
+    input, select, textarea, button {
+        font-size: 16px !important;
+    }
+
+    .kbd-shortcut {
+        display: none !important;
+    }
+
+    /* Navbar on Mobile */
+    .navbar {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 14px;
+        padding: 14px 16px;
+    }
+
+    .nav-left {
+        justify-content: space-between;
+        width: 100%;
+    }
+
+    .nav-center {
+        width: 100%;
+    }
+
+    .excel-status-pill {
+        justify-content: center;
+        width: 100%;
+    }
+
+    .nav-right {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+        width: 100%;
+    }
+
+    .nav-right .btn-theme-toggle {
+        grid-column: span 2;
+        width: 100%;
+        border-radius: var(--radius-md);
+        height: 38px;
+    }
+
+    .btn {
+        min-height: 42px;
+        font-size: 13.5px !important;
+        padding: 8px 12px;
+    }
+
+    /* Controls Bar */
+    .dashboard-controls-bar {
+        flex-direction: column;
+        align-items: stretch;
+        padding: 14px;
+    }
+
+    .controls-left {
+        justify-content: space-between;
+    }
+
+    .controls-right {
+        width: 100%;
+    }
+
+    .month-selector-wrap {
+        width: 100%;
+        justify-content: space-between;
+    }
+
+    .month-dropdown {
+        width: 100%;
+    }
+
+    /* Quick Log Strip on Mobile */
+    .quick-log-strip {
+        padding: 14px;
+    }
+
+    .quick-log-form {
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+    }
+
+    .quick-form-badge {
+        grid-column: span 2;
+        justify-content: center;
+    }
+
+    .quick-input-group, .quick-select-group {
+        grid-column: span 2;
+    }
+
+    .quick-input-group.date-group {
+        grid-column: span 2;
+    }
+
+    .quick-submit-btn {
+        grid-column: span 2;
+        min-height: 44px;
+    }
+
+    /* KPI Metrics on Mobile */
+    .metrics-grid {
+        grid-template-columns: 1fr;
+        gap: 14px;
+    }
+
+    .metric-card {
+        padding: 18px;
+    }
+
+    /* Table Actions on Mobile */
+    .transactions-header {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 14px;
+    }
+
+    .table-actions {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+    }
+
+    .search-input-wrap {
+        width: 100%;
+    }
+
+    .filter-group {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+        width: 100%;
+    }
+
+    .filter-group select {
+        width: 100%;
+    }
+
+    #clearAllExpensesBtn {
+        grid-column: span 2;
+        width: 100%;
+        justify-content: center;
+    }
+
+    .table-responsive {
+        -webkit-overflow-scrolling: touch;
+        border-radius: var(--radius-md);
+    }
+
+    .modern-table {
+        min-width: 600px;
+    }
+
+    /* Table Pagination Footer */
+    .table-pagination-footer {
+        flex-direction: column;
+        gap: 12px;
+        align-items: center;
+    }
+
+    /* Bottom Sheet Modals on Mobile */
+    .modal-backdrop {
+        align-items: flex-end;
+        padding: 0;
+    }
+
+    .modal-dialog {
+        border-radius: 20px 20px 0 0;
+        max-height: 90vh;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+        margin: 0;
+        transform: translateY(100%);
+    }
+
+    .modal-backdrop.active .modal-dialog {
+        transform: translateY(0);
+    }
+
+    .modal-header {
+        padding: 16px 20px;
+    }
+
+    .modal-form {
+        padding: 16px 20px;
+    }
+
+    .form-row-2 {
+        grid-template-columns: 1fr;
+    }
+
+    /* Footer on Mobile */
+    .app-footer {
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        gap: 14px;
+        padding: 16px;
+    }
+
+    .footer-left, .footer-right {
+        justify-content: center;
+    }
+}
+
+/* Extra Small Phones (< 400px - iPhone SE / Mini) */
+@media (max-width: 400px) {
+    .brand-title-row {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 2px;
+    }
+
+    .nav-right {
+        grid-template-columns: 1fr;
+    }
+
+    .filter-group {
+        grid-template-columns: 1fr;
+    }
+}
+
 
 
