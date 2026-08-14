@@ -1,7 +1,8 @@
 import os
-from flask import Flask, render_template, request, jsonify, send_file
+from flask import Flask, render_template, request, jsonify, send_file, Response
 import excel_manager
 import gemini_parser
+import whatsapp_bot
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'modern-expense-tracker-secret-key-2026'
@@ -366,6 +367,34 @@ def download_excel():
             mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
     return jsonify({"error": "File not found"}), 404
+
+@app.route('/api/whatsapp/webhook', methods=['GET', 'POST'])
+def whatsapp_webhook():
+    if request.method == 'GET':
+        return jsonify({
+            "status": "online",
+            "service": "Expenz.io WhatsApp AI Webhook",
+            "usage": "Point your Twilio WhatsApp Sandbox webhook to this URL via HTTP POST."
+        })
+
+    try:
+        from_number = request.form.get('From', '')
+        body = request.form.get('Body', '')
+        media_url = request.form.get('MediaUrl0')
+        media_type = request.form.get('MediaContentType0')
+        user_id = request.args.get('user_id') or 'default'
+
+        twiml_xml = whatsapp_bot.process_whatsapp_message(
+            from_number=from_number,
+            body_text=body,
+            media_url=media_url,
+            media_content_type=media_type,
+            user_id=user_id
+        )
+        return Response(twiml_xml, mimetype='application/xml')
+    except Exception as e:
+        err_reply = whatsapp_bot.generate_twiml_response(f"❌ Error processing message: {str(e)}")
+        return Response(err_reply, mimetype='application/xml')
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5001))

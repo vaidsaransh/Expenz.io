@@ -65,6 +65,10 @@
                     <i class="fa-solid fa-comments"></i>
                     <span>Ask AI</span>
                 </button>
+                <button class="btn btn-secondary btn-icon desktop-only" id="openWhatsAppModalBtn" title="Connect WhatsApp Assistant to log expenses and chat on the go">
+                    <i class="fa-brands fa-whatsapp text-emerald" style="font-size: 15px;"></i>
+                    <span>WhatsApp</span>
+                </button>
                 <button class="btn btn-secondary btn-icon desktop-only" id="openStatementModalBtn" title="Upload Bank / Amex Statements for AI Parsing">
                     <i class="fa-solid fa-wand-magic-sparkles"></i>
                     <span>AI Import</span>
@@ -859,6 +863,78 @@
         </div>
     </div>
 
+    <!-- MODAL 6: WhatsApp Assistant Integration Modal -->
+    <div class="modal-backdrop" id="whatsappModal">
+        <div class="modal-dialog glass-card" style="max-width: 580px;">
+            <div class="modal-header">
+                <div class="modal-title-wrap">
+                    <div class="modal-icon-badge" style="background: rgba(16, 185, 129, 0.15); color: #10b981;">
+                        <i class="fa-brands fa-whatsapp"></i>
+                    </div>
+                    <div>
+                        <h3 class="modal-title">WhatsApp AI Assistant & Expense Logger</h3>
+                        <p class="modal-subtitle">Log expenses, snap receipts & chat via WhatsApp (100% Free Sandbox)</p>
+                    </div>
+                </div>
+                <button class="modal-close-btn" id="closeWhatsAppModalBtn">&times;</button>
+            </div>
+
+            <div class="modal-body" style="padding: 20px 24px;">
+                <!-- Step 1 -->
+                <div style="background: var(--bg-surface-elevated, rgba(255,255,255,0.03)); border: 1px solid var(--border-subtle); border-radius: 12px; padding: 16px; margin-bottom: 16px;">
+                    <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
+                        <span style="background: #10b981; color: white; border-radius: 50%; width: 22px; height: 22px; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: bold;">1</span>
+                        <strong style="font-size: 14px;">Connect Your WhatsApp to Twilio Sandbox</strong>
+                    </div>
+                    <p style="font-size: 12.5px; color: var(--text-muted); line-height: 1.5; margin-bottom: 10px;">
+                        Save Twilio's WhatsApp number <strong class="text-white">+1 415 523 8886</strong> and text your sandbox join keyword (e.g. <code>join silver-mountain</code> from your Twilio Console).
+                    </p>
+                    <a href="https://console.twilio.com/us1/develop/sms/try-it-out/whatsapp-learn" target="_blank" rel="noopener noreferrer" class="btn btn-secondary btn-sm" style="display: inline-flex; align-items: center; gap: 6px; font-size: 12px;">
+                        <i class="fa-solid fa-arrow-up-right-from-square"></i> Open Twilio WhatsApp Sandbox
+                    </a>
+                </div>
+
+                <!-- Step 2 -->
+                <div style="background: var(--bg-surface-elevated, rgba(255,255,255,0.03)); border: 1px solid var(--border-subtle); border-radius: 12px; padding: 16px; margin-bottom: 16px;">
+                    <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
+                        <span style="background: var(--accent-primary); color: white; border-radius: 50%; width: 22px; height: 22px; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: bold;">2</span>
+                        <strong style="font-size: 14px;">Paste Webhook URL in Twilio Sandbox</strong>
+                    </div>
+                    <p style="font-size: 12.5px; color: var(--text-muted); line-height: 1.5; margin-bottom: 10px;">
+                        In your Twilio Console under <em>"When a message comes in"</em>, paste this URL (Method: <strong>POST</strong>):
+                    </p>
+                    <div style="display: flex; gap: 8px;">
+                        <input type="text" id="whatsappWebhookUrlInput" class="form-control" readonly style="font-family: var(--font-mono); font-size: 12px; background: rgba(0,0,0,0.25);" value="https://expenz-io.onrender.com/api/whatsapp/webhook">
+                        <button type="button" class="btn btn-secondary" id="copyWhatsAppWebhookBtn" title="Copy URL">
+                            <i class="fa-solid fa-copy"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Step 3: Sample Commands -->
+                <div style="background: rgba(99, 102, 241, 0.05); border: 1px solid rgba(99, 102, 241, 0.2); border-radius: 12px; padding: 16px;">
+                    <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
+                        <span style="background: #6366f1; color: white; border-radius: 50%; width: 22px; height: 22px; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: bold;">3</span>
+                        <strong style="font-size: 14px;">Try Sending These in WhatsApp!</strong>
+                    </div>
+                    <ul style="font-size: 12px; color: var(--text-secondary); margin: 0; padding-left: 18px; line-height: 1.8;">
+                        <li>💳 <code>$42.50 at Chipotle on Amex for lunch with Alex</code></li>
+                        <li>🧾 <strong>Send a photo</strong> of any store receipt or restaurant bill</li>
+                        <li>❓ <code>How much budget do I have left for dining this month?</code></li>
+                        <li>📊 <code>Give me a summary of my August spending</code></li>
+                    </ul>
+                </div>
+
+                <div class="modal-actions" style="margin-top: 20px; display: flex; justify-content: flex-end;">
+                    <button type="button" class="btn btn-primary" id="closeWhatsAppModalBtn2">
+                        <i class="fa-solid fa-check"></i>
+                        <span>Done</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Mobile Native Bottom App Bar (Fixed at bottom on mobile) -->
     <nav class="mobile-bottom-bar" id="mobileBottomBar">
         <button class="mob-nav-item active" data-target="dashboard" id="mobNavDashboard">
@@ -925,11 +1001,19 @@
                     </div>
                     <i class="fa-solid fa-chevron-right text-muted"></i>
                 </button>
+                <button class="sheet-action-item" id="mobActionOpenWhatsApp">
+                    <div class="action-item-icon" style="background: rgba(16, 185, 129, 0.15); color: #10b981;"><i class="fa-brands fa-whatsapp"></i></div>
+                    <div class="action-item-text">
+                        <strong>WhatsApp Assistant & Expense Logger</strong>
+                        <span>Text receipts and chat with your bot on WhatsApp</span>
+                    </div>
+                    <i class="fa-solid fa-chevron-right text-muted"></i>
+                </button>
                 <button class="sheet-action-item" id="mobActionConfigureKey">
                     <div class="action-item-icon icon-emerald"><i class="fa-solid fa-key"></i></div>
                     <div class="action-item-text">
-                        <strong>Gemini API Key Settings</strong>
-                        <span>Configure or update your Gemini API key</span>
+                        <strong>AI Model & Key Settings</strong>
+                        <span>Configure Gemini, OpenAI, Claude, or OpenRouter</span>
                     </div>
                     <i class="fa-solid fa-chevron-right text-muted"></i>
                 </button>

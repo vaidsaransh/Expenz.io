@@ -226,5 +226,37 @@ class TestExpenseTracker(unittest.TestCase):
         res_empty = self.client.get('/api/expenses', headers={"X-User-Id": uid})
         self.assertEqual(res_empty.get_json()["pagination"]["total_items"], 0)
 
+    def test_11_whatsapp_webhook_get(self):
+        res = self.client.get('/api/whatsapp/webhook')
+        self.assertEqual(res.status_code, 200)
+        data = res.get_json()
+        self.assertEqual(data["status"], "online")
+
+    def test_12_whatsapp_help_command(self):
+        res = self.client.post('/api/whatsapp/webhook', data={
+            "From": "whatsapp:+14155552671",
+            "Body": "help"
+        })
+        self.assertEqual(res.status_code, 200)
+        self.assertIn("<Response>", res.data.decode())
+        self.assertIn("Welcome to Expenz.io on WhatsApp", res.data.decode())
+
+    def test_13_whatsapp_log_expense_and_sync(self):
+        uid = "user_wa_test"
+        res = self.client.post(f'/api/whatsapp/webhook?user_id={uid}', data={
+            "From": "whatsapp:+14155552671",
+            "Body": "Spent $28.50 at Chipotle on Amex for burritos"
+        })
+        self.assertEqual(res.status_code, 200)
+        self.assertIn("<Response>", res.data.decode())
+        
+        # Verify expense was logged in Excel
+        exp_res = self.client.get(f'/api/expenses?user_id={uid}')
+        exp_data = exp_res.get_json()
+        self.assertGreaterEqual(exp_data["pagination"]["total_items"], 1)
+        
+        # Clean up
+        self.client.post(f'/api/expenses/clear-all?user_id={uid}')
+
 if __name__ == '__main__':
     unittest.main()

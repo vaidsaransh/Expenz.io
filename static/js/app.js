@@ -153,6 +153,21 @@ function initEventListeners() {
         updateProviderHelpUI(e.target.value);
     });
 
+    // WhatsApp Modal Triggers
+    document.getElementById('openWhatsAppModalBtn')?.addEventListener('click', openWhatsAppModal);
+    document.getElementById('closeWhatsAppModalBtn')?.addEventListener('click', closeWhatsAppModal);
+    document.getElementById('closeWhatsAppModalBtn2')?.addEventListener('click', closeWhatsAppModal);
+    document.getElementById('copyWhatsAppWebhookBtn')?.addEventListener('click', () => {
+        const input = document.getElementById('whatsappWebhookUrlInput');
+        if (input && navigator.clipboard) {
+            navigator.clipboard.writeText(input.value).then(() => {
+                showToast('Webhook URL copied to clipboard!', 'success');
+            }).catch(() => {
+                showToast('Webhook URL: ' + input.value, 'info');
+            });
+        }
+    });
+
     // Initialize Mobile Experience & Navigation
     initMobileExperience();
 
@@ -1622,6 +1637,26 @@ function updateApiKeyBadge(isConfigured, provider = 'gemini') {
 }
 
 /* ==========================================================================
+   WhatsApp Assistant Modal
+   ========================================================================== */
+function openWhatsAppModal() {
+    const modal = document.getElementById('whatsappModal');
+    const input = document.getElementById('whatsappWebhookUrlInput');
+    if (input) {
+        const origin = window.location.origin.includes('localhost') || window.location.origin.includes('127.0.0.1')
+            ? 'https://expenz-io.onrender.com'
+            : window.location.origin;
+        input.value = `${origin}/api/whatsapp/webhook`;
+    }
+    if (modal) modal.classList.add('active');
+}
+
+function closeWhatsAppModal() {
+    const modal = document.getElementById('whatsappModal');
+    if (modal) modal.classList.remove('active');
+}
+
+/* ==========================================================================
    AI Financial Insights Modal
    ========================================================================== */
 function openInsightsModal() {
@@ -1868,6 +1903,11 @@ function initMobileExperience() {
     document.getElementById('mobActionGenerateInsights')?.addEventListener('click', () => {
         if (aiSheet) aiSheet.classList.remove('active');
         openInsightsModal();
+    });
+
+    document.getElementById('mobActionOpenWhatsApp')?.addEventListener('click', () => {
+        if (aiSheet) aiSheet.classList.remove('active');
+        openWhatsAppModal();
     });
 
     document.getElementById('mobActionConfigureKey')?.addEventListener('click', () => {
