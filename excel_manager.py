@@ -6,12 +6,13 @@ from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-USER_DATA_DIR = os.path.join(BASE_DIR, "user_data")
 EXCEL_FILE = os.path.join(BASE_DIR, "expenses_data.xlsx")
-_file_lock = threading.RLock()
+MASTER_BACKUP_FILE = os.path.join(BASE_DIR, "expenses_data_master_backup.xlsx")
+USER_DATA_DIR = os.path.join(BASE_DIR, "user_data")
+_file_lock = threading.Lock()
 
 def get_excel_file_path(user_id=None):
-    if not user_id or str(user_id).strip().lower() in ("default", "main", "primary", "", "none"):
+    if not user_id:
         return EXCEL_FILE
     
     clean_id = "".join(c for c in str(user_id) if c.isalnum() or c in ("-", "_")).strip()
@@ -84,6 +85,16 @@ def init_excel(target_file=None):
     if target_file is None:
         target_file = EXCEL_FILE
     with _file_lock:
+        # Safeguard: If master file is missing or corrupted/empty, auto-restore from master backup snapshot
+        if target_file == EXCEL_FILE:
+            if (not os.path.exists(EXCEL_FILE) or os.path.getsize(EXCEL_FILE) < 5000) and os.path.exists(MASTER_BACKUP_FILE):
+                try:
+                    import shutil
+                    shutil.copyfile(MASTER_BACKUP_FILE, EXCEL_FILE)
+                    return EXCEL_FILE
+                except Exception:
+                    pass
+
         if os.path.exists(target_file):
             return target_file
 
