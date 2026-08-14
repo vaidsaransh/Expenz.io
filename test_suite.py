@@ -76,6 +76,7 @@ class TestExpenseTracker(unittest.TestCase):
         self.assertEqual(len(data_list["data"]), 0)
 
     def test_06_filter_verification_and_live_excel(self):
+        self.client.post('/api/expenses/clear-all')
         # Insert 3 test expenses across 2 categories and 2 months
         self.client.post('/api/expenses', json={"date": "2026-08-10", "amount": 50.0, "category": "Food & Dining", "description": "Burger"})
         self.client.post('/api/expenses', json={"date": "2026-08-12", "amount": 30.0, "category": "Transportation", "description": "Gas"})
@@ -100,6 +101,11 @@ class TestExpenseTracker(unittest.TestCase):
         res_combo = self.client.get('/api/expenses?month=2026-08&category=Food%20%26%20Dining')
         data_combo = res_combo.get_json()
         self.assertEqual(len(data_combo["data"]), 1)
+
+        # Verify month=auto defaults to active month (August 2026 -> 2 items)
+        res_auto = self.client.get('/api/expenses?month=auto')
+        data_auto = res_auto.get_json()
+        self.assertEqual(len(data_auto["data"]), 2)
 
         # Verify Excel file is updated live on disk directly
         import openpyxl

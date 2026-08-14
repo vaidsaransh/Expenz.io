@@ -172,6 +172,29 @@ def get_expenses(start_date=None, end_date=None, category=None, search=None, pay
         wb, _ = get_workbook(user_id)
         ws = wb["Expenses"]
         expenses = []
+
+        # Resolve target month filter
+        target_month = str(month).strip() if month is not None else None
+        if target_month and target_month.lower() in ['all', '']:
+            target_month = None
+        elif target_month and target_month.lower() == 'auto':
+            # Auto-detect active month
+            all_dates = []
+            for row in ws.iter_rows(min_row=2, max_col=2, values_only=True):
+                if row and row[1]:
+                    d = str(row[1]).strip()
+                    if isinstance(row[1], datetime):
+                        d = row[1].strftime("%Y-%m-%d")
+                    if len(d) >= 7:
+                        all_dates.append(d[:7])
+            now_mo = datetime.now().strftime("%Y-%m")
+            if now_mo in all_dates:
+                target_month = now_mo
+            elif all_dates:
+                target_month = sorted(list(set(all_dates)), reverse=True)[0]
+            else:
+                target_month = None
+
         for row in ws.iter_rows(min_row=2, values_only=True):
             if not row or row[0] is None:
                 continue
@@ -192,7 +215,7 @@ def get_expenses(start_date=None, end_date=None, category=None, search=None, pay
             created_val = str(row[6]) if len(row) > 6 and row[6] is not None else ""
             
             # Filtering
-            if month and month.lower() != 'all' and not date_val.startswith(month):
+            if target_month and not date_val.startswith(target_month):
                 continue
             if category and category.lower() != 'all' and cat_val.lower() != category.lower():
                 continue

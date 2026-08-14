@@ -573,10 +573,8 @@ async function loadInitialData() {
     try {
         checkApiKeyStatus();
         await fetchCategories();
-        await Promise.all([
-            fetchSummary(),
-            fetchExpenses()
-        ]);
+        await fetchSummary();
+        await fetchExpenses();
     } catch (err) {
         showToast('Error loading data: ' + err.message, 'error');
     }
@@ -633,6 +631,9 @@ async function fetchSummary() {
         const data = await res.json();
         if (data.success) {
             state.summary = data.data;
+            if (data.data.active_month && (!state.selectedMonth || state.selectedMonth === 'auto')) {
+                state.selectedMonth = data.data.active_month;
+            }
             state.selectedMonthLabel = data.data.active_month_label || 'Current Month';
             updateDashboardMetrics(data.data);
             renderCharts(data.data);
@@ -665,13 +666,14 @@ async function fetchSummary() {
 
 async function fetchExpenses() {
     try {
+        const currentMonth = state.selectedMonth || (state.summary?.active_month) || 'auto';
         const params = new URLSearchParams({
             page: state.pagination.page,
             limit: state.pagination.limit,
             category: state.filters.category,
             payment_method: state.filters.payment_method,
             search: state.filters.search,
-            month: state.selectedMonth || 'auto'
+            month: currentMonth
         });
 
         const res = await apiFetch(`/api/expenses?${params.toString()}`);
