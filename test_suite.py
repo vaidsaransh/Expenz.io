@@ -276,5 +276,47 @@ class TestExpenseTracker(unittest.TestCase):
         data = get_res.get_json()
         self.assertTrue(data["configured"])
 
+    def test_15_telegram_review_and_confirm(self):
+        uid = "user_tg_review"
+        # 1. Ask to review
+        res = self.client.post(f'/api/telegram/webhook?user_id={uid}', json={
+            "message": {
+                "chat": {"id": 888888},
+                "text": "Add $10.14 for Walmart Delivery Pass. Review before adding."
+            }
+        })
+        self.assertEqual(res.status_code, 200)
+        
+        # 2. Confirm via callback query
+        cb_res = self.client.post(f'/api/telegram/webhook?user_id={uid}', json={
+            "callback_query": {
+                "id": "cb_123",
+                "message": {
+                    "chat": {"id": 888888},
+                    "message_id": 456
+                },
+                "data": "confirm_add_pending"
+            }
+        })
+        self.assertEqual(cb_res.status_code, 200)
+
+        # 3. Verify logged
+        exp_res = self.client.get(f'/api/expenses?user_id={uid}')
+        self.assertGreaterEqual(exp_res.get_json()["pagination"]["total_items"], 1)
+
+        # Clean up
+        self.client.post(f'/api/expenses/clear-all?user_id={uid}')
+
+    def test_16_telegram_insights_command(self):
+        res = self.client.post('/api/telegram/webhook', json={
+            "message": {
+                "chat": {"id": 999999},
+                "text": "/insights"
+            }
+        })
+        self.assertEqual(res.status_code, 200)
+        data = res.get_json()
+        self.assertTrue(data["ok"])
+
 if __name__ == '__main__':
     unittest.main()

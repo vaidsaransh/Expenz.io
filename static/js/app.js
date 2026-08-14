@@ -1678,7 +1678,7 @@ async function handleTelegramSubmit(e) {
 
     try {
         const origin = window.location.origin.includes('localhost') || window.location.origin.includes('127.0.0.1')
-            ? 'https://expenz-io.onrender.com'
+            ? 'https://web-production-9ad68.up.railway.app'
             : window.location.origin;
 
         const res = await apiFetch('/api/config/telegram', {
