@@ -203,15 +203,20 @@ body {
 
 /* Excel Status Pill */
 .excel-status-pill {
-    display: flex;
+    display: inline-flex;
     align-items: center;
     gap: 8px;
     background: rgba(16, 185, 129, 0.1);
     border: 1px solid rgba(16, 185, 129, 0.25);
-    padding: 6px 14px;
+    padding: 0 14px;
+    height: 40px;
+    min-height: 40px;
+    max-height: 40px;
     border-radius: var(--radius-full);
     font-size: 12px;
     color: var(--text-secondary);
+    white-space: nowrap;
+    box-sizing: border-box;
 }
 
 .pulse-dot {
@@ -232,7 +237,37 @@ body {
 .nav-right {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
+}
+
+.nav-right .btn {
+    height: 40px;
+    min-height: 40px;
+    max-height: 40px;
+    padding: 0 14px;
+    font-size: 12.5px;
+    font-weight: 600;
+    border-radius: 10px;
+    white-space: nowrap;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    line-height: 1;
+    box-sizing: border-box;
+}
+
+.nav-right .btn-theme-toggle {
+    width: 40px;
+    height: 40px;
+    min-height: 40px;
+    max-height: 40px;
+    min-width: 40px;
+    border-radius: 10px;
+    box-sizing: border-box;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
 }
 
 /* Buttons */
@@ -1593,31 +1628,36 @@ body {
 .controls-right {
     display: flex;
     align-items: center;
+    gap: 12px;
+}
+
+.selectors-row {
+    display: flex;
+    align-items: center;
     gap: 10px;
 }
 
-.month-selector-wrap {
+.selector-box {
+    position: relative;
     display: flex;
     align-items: center;
-    gap: 8px;
     background: var(--bg-surface);
     border: 1px solid var(--bg-card-border);
-    padding: 4px 12px;
     border-radius: var(--radius-md);
+    padding: 0 10px;
+    height: 40px;
+    min-height: 40px;
+    box-sizing: border-box;
     transition: var(--transition);
 }
 
-.month-selector-wrap:hover {
+.selector-box:hover,
+.selector-box:focus-within {
     border-color: var(--accent-primary);
+    box-shadow: 0 0 0 3px var(--accent-primary-glow);
 }
 
-.selector-label {
-    font-size: 12.5px;
-    font-weight: 600;
-    color: var(--text-secondary);
-}
-
-.month-dropdown {
+.selector-box .modern-select {
     background: transparent;
     border: none;
     color: var(--text-primary);
@@ -1626,7 +1666,37 @@ body {
     font-family: var(--font-main);
     cursor: pointer;
     outline: none;
-    padding: 4px 0;
+    padding: 0 24px 0 4px;
+    height: 38px;
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2394a3b8'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 4px center;
+    background-size: 13px;
+    min-width: 140px;
+}
+
+.selector-box .modern-select option {
+    background: var(--bg-surface-elevated, #1e293b);
+    color: var(--text-primary);
+    padding: 8px;
+}
+
+.insights-trigger-btn {
+    height: 40px;
+    min-height: 40px;
+    max-height: 40px;
+    padding: 0 16px;
+    font-size: 12.5px;
+    font-weight: 600;
+    white-space: nowrap;
+    border-radius: var(--radius-md);
+    box-sizing: border-box;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
 }
 
 /* ==========================================================================
@@ -2171,9 +2241,9 @@ body {
         padding-right: 14px;
     }
 
-    /* Prevent iOS Safari from zooming into inputs */
-    input, select, textarea, button {
-        font-size: 16px !important;
+    /* Prevent iOS Safari from zooming into inputs without forcing 16px on all buttons */
+    input, select, textarea {
+        font-size: 16px;
     }
 
     .kbd-shortcut {
@@ -2186,8 +2256,8 @@ body {
         flex-direction: row;
         align-items: center;
         justify-content: space-between;
-        padding: 10px 14px;
-        margin-bottom: 12px;
+        padding: 8px 12px;
+        margin-bottom: 10px;
     }
 
     .nav-left {
@@ -2199,18 +2269,18 @@ body {
     }
 
     .logo-icon {
-        width: 34px;
-        height: 34px;
-        font-size: 16px;
-        border-radius: 10px;
+        width: 32px;
+        height: 32px;
+        font-size: 15px;
+        border-radius: 8px;
     }
 
     .brand-name {
-        font-size: 18px;
+        font-size: 16px;
     }
 
     .creator-badge {
-        font-size: 10.5px;
+        font-size: 10px;
         padding: 2px 6px;
     }
 
@@ -2226,14 +2296,14 @@ body {
         display: flex;
         flex-direction: row;
         align-items: center;
-        gap: 8px;
+        gap: 6px;
         width: auto;
     }
 
     .nav-key-btn {
-        width: 36px !important;
-        height: 36px !important;
-        min-height: 36px !important;
+        width: 34px !important;
+        height: 34px !important;
+        min-height: 34px !important;
         padding: 0 !important;
         border-radius: 50% !important;
         display: flex !important;
@@ -2242,13 +2312,23 @@ body {
     }
 
     .btn-theme-toggle {
-        width: 36px !important;
-        height: 36px !important;
-        min-width: 36px !important;
+        width: 34px !important;
+        height: 34px !important;
+        min-width: 34px !important;
         border-radius: 50% !important;
         display: flex !important;
         align-items: center !important;
         justify-content: center !important;
+    }
+
+    /* Segmented Control on Mobile */
+    .mobile-segmented-control {
+        margin-bottom: 12px;
+    }
+
+    .segmented-btn {
+        font-size: 11.5px;
+        padding: 8px 12px;
     }
 
     /* Clean Dashboard Controls Bar */
@@ -2256,12 +2336,21 @@ body {
         display: flex;
         flex-direction: column;
         align-items: stretch;
-        padding: 14px;
-        gap: 12px;
+        padding: 12px;
+        gap: 10px;
         box-sizing: border-box;
         width: 100%;
         overflow: hidden;
-        margin-bottom: 14px;
+        margin-bottom: 12px;
+    }
+
+    .section-badge {
+        font-size: 12px;
+    }
+
+    .active-period-tag {
+        font-size: 11px;
+        padding: 2px 8px;
     }
 
     .controls-left {
@@ -2274,7 +2363,7 @@ body {
     .controls-right {
         display: flex;
         flex-direction: column;
-        gap: 10px;
+        gap: 8px;
         width: 100%;
         box-sizing: border-box;
     }
@@ -2296,19 +2385,20 @@ body {
         background: var(--bg-surface);
         border: 1px solid var(--bg-card-border);
         border-radius: var(--radius-sm);
-        padding: 2px 8px;
+        padding: 0 6px;
         display: flex;
         align-items: center;
+        height: 38px;
     }
 
     .modern-select {
         width: 100%;
         min-width: 0;
-        height: 40px;
+        height: 38px;
         border: none;
         background: transparent;
         color: var(--text-primary);
-        font-size: 13px;
+        font-size: 12px;
         font-weight: 700;
         font-family: var(--font-main);
         outline: none;
@@ -2325,12 +2415,13 @@ body {
 
     .insights-trigger-btn {
         width: 100%;
-        min-height: 44px;
+        min-height: 40px;
+        height: 40px;
         display: flex;
         align-items: center;
         justify-content: center;
-        gap: 8px;
-        font-size: 14px;
+        gap: 6px;
+        font-size: 12.5px;
         font-weight: 700;
         background: linear-gradient(135deg, #ec4899, #8b5cf6) !important;
         color: #ffffff !important;
@@ -2347,34 +2438,52 @@ body {
     /* KPI Metrics on Mobile */
     .metrics-grid {
         grid-template-columns: 1fr;
-        gap: 12px;
-        margin-bottom: 14px;
+        gap: 10px;
+        margin-bottom: 12px;
     }
 
     .metric-card {
-        padding: 16px;
+        padding: 14px;
+    }
+
+    .metric-title {
+        font-size: 11px;
     }
 
     .metric-value {
-        font-size: 26px;
+        font-size: 22px;
+    }
+
+    .metric-subtext {
+        font-size: 10.5px;
     }
 
     /* Quick Log on Mobile */
     .quick-log-strip {
-        padding: 14px;
-        margin-bottom: 14px;
+        padding: 12px;
+        margin-bottom: 12px;
     }
 
     .quick-log-header {
-        margin-bottom: 10px;
+        margin-bottom: 8px;
+    }
+
+    .quick-form-badge {
+        font-size: 11.5px;
     }
 
     .quick-log-form {
         display: grid;
         grid-template-columns: 1fr 1fr;
-        gap: 10px;
+        gap: 8px;
         width: 100%;
         box-sizing: border-box;
+    }
+
+    .quick-input-group input,
+    .quick-select-group select {
+        font-size: 12px;
+        padding: 8px 10px 8px 28px;
     }
 
     .quick-input-group.full-row {
@@ -2392,9 +2501,10 @@ body {
     }
 
     .quick-submit-btn {
-        min-height: 44px;
-        font-size: 13px !important;
+        min-height: 40px;
+        font-size: 12px !important;
         font-weight: 700;
+        padding: 0 8px;
     }
 
     /* Charts & Analytics on Mobile: Strict 1-Column Portrait */
@@ -2403,11 +2513,11 @@ body {
         display: flex !important;
         flex-direction: column !important;
         grid-template-columns: 1fr !important;
-        gap: 14px !important;
+        gap: 12px !important;
         width: 100% !important;
         max-width: 100% !important;
         box-sizing: border-box !important;
-        margin-bottom: 16px !important;
+        margin-bottom: 14px !important;
         overflow: hidden !important;
     }
 
@@ -2417,28 +2527,28 @@ body {
         max-width: 100% !important;
         grid-column: span 1 !important;
         box-sizing: border-box !important;
-        padding: 16px !important;
+        padding: 14px !important;
         overflow: hidden !important;
     }
 
     .chart-header {
-        margin-bottom: 12px;
+        margin-bottom: 10px;
     }
 
     .chart-title {
-        font-size: 14.5px;
+        font-size: 13.5px;
     }
 
     .chart-subtitle {
-        font-size: 11.5px;
+        font-size: 10.5px;
     }
 
     .chart-wrapper {
         position: relative !important;
         width: 100% !important;
         max-width: 100% !important;
-        min-height: 220px !important;
-        max-height: 240px !important;
+        min-height: 200px !important;
+        max-height: 220px !important;
         box-sizing: border-box !important;
         overflow: hidden !important;
     }
@@ -2449,8 +2559,8 @@ body {
     }
 
     .donut-wrapper {
-        min-height: 190px !important;
-        max-height: 210px !important;
+        min-height: 180px !important;
+        max-height: 200px !important;
     }
 
     /* Table & Actions on Mobile */
@@ -2458,10 +2568,23 @@ body {
         display: none !important;
     }
 
+    .transactions-section {
+        padding: 14px;
+        margin-bottom: 14px;
+    }
+
+    .section-title {
+        font-size: 13.5px;
+    }
+
+    .section-subtitle {
+        font-size: 10.5px;
+    }
+
     .mobile-txns-cards-list {
         display: flex !important;
         flex-direction: column;
-        gap: 10px;
+        gap: 8px;
         width: 100%;
         box-sizing: border-box;
     }
@@ -2470,89 +2593,98 @@ body {
         background: var(--bg-surface);
         border: 1px solid var(--bg-card-border);
         border-radius: var(--radius-md);
-        padding: 14px;
+        padding: 12px;
         display: flex;
         flex-direction: column;
-        gap: 10px;
+        gap: 8px;
         width: 100%;
         box-sizing: border-box;
-        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.04);
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
     }
 
     .txn-card-header {
         display: flex;
         align-items: center;
         justify-content: space-between;
-        gap: 10px;
+        gap: 8px;
     }
 
     .txn-card-cat-wrap {
         display: flex;
         align-items: center;
-        gap: 10px;
+        gap: 8px;
     }
 
     .txn-cat-badge {
-        width: 38px;
-        height: 38px;
-        border-radius: 10px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 16px;
-        flex-shrink: 0;
-    }
-
-    .txn-cat-title-group {
-        display: flex;
-        flex-direction: column;
-        gap: 2px;
+        width: 34px;
+        height: 34px;
+        border-radius: 8px;
+        font-size: 14px;
     }
 
     .txn-cat-name {
-        font-size: 12px;
+        font-size: 11.5px;
         font-weight: 700;
     }
 
     .txn-date-tag {
-        font-size: 11px;
+        font-size: 10px;
         color: var(--text-muted);
     }
 
     .txn-amount-badge {
-        font-size: 17px;
+        font-size: 15px;
         font-weight: 800;
-        color: var(--accent-rose);
-        font-family: var(--font-mono);
     }
 
     .txn-card-desc {
-        font-size: 14px;
+        font-size: 12.5px;
         font-weight: 600;
-        color: var(--text-primary);
-        margin: 0;
-        line-height: 1.4;
-        word-break: break-word;
-    }
-
-    .txn-card-footer {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding-top: 8px;
-        border-top: 1px solid var(--bg-card-border);
+        line-height: 1.35;
     }
 
     .txn-payment-pill {
-        font-size: 11px;
-        color: var(--text-secondary);
-        background: var(--bg-surface-hover);
-        padding: 3px 8px;
-        border-radius: 6px;
-        display: inline-flex;
+        font-size: 10.5px;
+        padding: 2px 6px;
+    }
+
+    /* AI Statement Modal Review Actions on Mobile (3 buttons side-by-side) */
+    .review-header-bar {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        align-items: stretch;
+    }
+
+    .review-meta {
+        display: flex;
         align-items: center;
-        gap: 5px;
-        font-weight: 600;
+        justify-content: space-between;
+        font-size: 11.5px;
+    }
+
+    .review-actions {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1.3fr;
+        gap: 6px;
+        width: 100%;
+        box-sizing: border-box;
+    }
+
+    .review-actions .btn {
+        padding: 6px 4px !important;
+        font-size: 11px !important;
+        height: 36px !important;
+        min-height: 36px !important;
+        white-space: nowrap;
+        justify-content: center;
+        border-radius: 8px;
+        gap: 4px;
+        box-sizing: border-box;
+    }
+
+    .review-actions .btn i {
+        font-size: 11px !important;
     }
 
     .txn-actions-pill-group {

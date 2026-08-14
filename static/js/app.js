@@ -135,6 +135,8 @@ function initEventListeners() {
     document.getElementById('closeStatementModalBtn')?.addEventListener('click', closeStatementModal);
     document.getElementById('cancelStatementReviewBtn')?.addEventListener('click', closeStatementModal);
     document.getElementById('reUploadStatementBtn')?.addEventListener('click', showUploadStep);
+    document.getElementById('confirmBulkImportBtn')?.addEventListener('click', handleBulkImportConfirm);
+    document.getElementById('topConfirmBulkImportBtn')?.addEventListener('click', handleBulkImportConfirm);
 
     // API Key Settings Modal
     document.getElementById('openApiKeyModalBtn')?.addEventListener('click', openApiKeyModal);
@@ -464,15 +466,19 @@ function recalcReviewSummary() {
     const badge = document.getElementById('reviewCountBadge');
     const totalEl = document.getElementById('reviewTotalAmount');
     const btnText = document.getElementById('confirmImportBtnText');
+    const topBtnText = document.getElementById('topConfirmImportBtnText');
 
     if (badge) badge.textContent = `${count} selected (${document.querySelectorAll('.review-row').length} total)`;
     if (totalEl) totalEl.textContent = formatCurrency(total);
     if (btnText) btnText.textContent = `Import ${count} to Excel`;
+    if (topBtnText) topBtnText.textContent = `Import (${count})`;
 }
 
 async function handleBulkImportConfirm() {
     const btn = document.getElementById('confirmBulkImportBtn');
+    const topBtn = document.getElementById('topConfirmBulkImportBtn');
     const btnText = document.getElementById('confirmImportBtnText');
+    const topBtnText = document.getElementById('topConfirmImportBtnText');
     const itemsToImport = [];
 
     document.querySelectorAll('.review-row').forEach(row => {
@@ -499,7 +505,9 @@ async function handleBulkImportConfirm() {
     }
 
     if (btn) btn.disabled = true;
-    if (btnText) btnText.textContent = 'Importing into Excel...';
+    if (topBtn) topBtn.disabled = true;
+    if (btnText) btnText.textContent = 'Importing...';
+    if (topBtnText) topBtnText.textContent = 'Importing...';
 
     try {
         const res = await apiFetch('/api/expenses/bulk', {
@@ -543,7 +551,9 @@ async function handleBulkImportConfirm() {
         showToast('Error importing expenses: ' + err.message, 'error');
     } finally {
         if (btn) btn.disabled = false;
+        if (topBtn) topBtn.disabled = false;
         if (btnText) btnText.textContent = 'Import to Excel';
+        if (topBtnText) topBtnText.textContent = 'Import to Excel';
     }
 }
 
