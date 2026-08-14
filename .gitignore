@@ -3,6 +3,7 @@ __pycache__/
 *.pyo
 *.pyd
 .env
+.api_key
 .DS_Store
 .venv/
 env/
