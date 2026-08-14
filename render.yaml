@@ -3,10 +3,10 @@ services:
     name: expenz-tracker
     runtime: python
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn app:app
+    startCommand: gunicorn app:app --workers 2 --threads 4 --timeout 180 --access-logfile - --error-logfile -
     plan: free
     envVars:
       - key: PYTHON_VERSION
-        value: 3.11.1
+        value: 3.11.10
       - key: GEMINI_API_KEY
         sync: false

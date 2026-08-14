@@ -19,6 +19,7 @@ DEFAULT_CATEGORIES = [
     {"name": "Education & Learning", "color": "#14B8A6", "icon": "graduation-cap"},
     {"name": "Personal Care", "color": "#F43F5E", "icon": "sparkles"},
     {"name": "Investments & Savings", "color": "#84CC16", "icon": "piggy-bank"},
+    {"name": "Refunds & Credits", "color": "#10B981", "icon": "rotate-left"},
     {"name": "Miscellaneous", "color": "#64748B", "icon": "tags"},
 ]
 

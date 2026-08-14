@@ -22,16 +22,19 @@ STANDARD_CATEGORIES = [
     "Education & Learning",
     "Personal Care",
     "Investments & Savings",
+    "Refunds & Credits",
     "Miscellaneous"
 ]
 
 EXTRACTION_SYSTEM_PROMPT = f"""
 You are an expert financial document analyzer.
-Analyze the provided statement (Bank Statement, Amex credit card bill, Excel spreadsheet, invoice, or receipt) and extract all expense / purchase transactions.
+Analyze the provided statement (Bank Statement, Amex credit card bill, Excel spreadsheet, invoice, or receipt) and extract all expense and refund transactions.
 
 Rules for Extraction:
-1. Extract every purchase, debit, or fee.
-2. DO NOT include credit card bill payments, balance settlements, or payment receipts (e.g. "AUTOPAY PAYMENT RECEIVED", "PAYMENT RECEIVED - THANK YOU", "ONLINE PAYMENT", "DIRECT DEBIT PYMT").
+1. Extract every purchase, debit, merchant fee, and merchant return/statement credit.
+2. HANDLING CREDITS VS BILL PAYMENTS:
+   - MERCHANT REFUNDS, RETURNS & CREDITS (e.g. Amazon refund, Airline cancellation credit, merchant dispute credit, cash back rewards): DO EXTRACT THESE. Classify them under 'Refunds & Credits' or the original purchase category, and clearly note '(Refund / Credit)' in description (e.g. "Amazon.com (Refund Credit)").
+   - CREDIT CARD BILL PAYMENTS & SETTLEMENTS (e.g. "AUTOPAY PAYMENT RECEIVED - THANK YOU", "ONLINE PAYMENT RECEIVED", "DIRECT DEBIT PYMT"): DO NOT INCLUDE THESE (these are balance pay-downs from bank checking accounts, not purchases or merchant returns).
 3. Standardize the Date into 'YYYY-MM-DD' format.
 4. Extract the exact numerical Amount as a positive float (e.g. 45.20).
 5. Clean up the Merchant / Description name (e.g. change "WHOLEFDS MKT 1024 SAN FRANCISCO CA" to "Whole Foods Market").
