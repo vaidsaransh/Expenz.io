@@ -434,3 +434,117 @@ def generate_financial_insights(month_label, summary_data, expenses_data, custom
             "alerts": [],
             "projected_monthly_savings": 50.00
         }
+
+COPILOT_SYSTEM_PROMPT = """
+You are "Expenz Copilot", an elite, proactive, and friendly personal AI financial advisor built directly into Expenz.io.
+You have direct, real-time access to the user's active Excel ledger, category budgets, expense transactions, and spending statistics.
+
+Your Persona & Rules:
+1. Provide accurate, insightful, and grounded answers using the user's actual expense data provided below.
+2. Quote exact numbers ($ amounts, merchant names, dates, budget utilization %) whenever applicable.
+3. Format your response in clean, beautiful GitHub-flavored markdown with bold highlights, clean bullet points, and easy-to-read sections.
+4. When giving financial advice, be encouraging, pragmatic, and actionable (e.g. identify specific subscriptions or high dining weeks to cut).
+5. Provide 2 to 3 concise, highly relevant follow-up questions the user might want to click next.
+6. Always return ONLY a valid JSON object with the exact structure:
+{
+  "reply": "Your markdown formatted reply here...",
+  "suggested_followups": [
+    "What was my largest purchase this month?",
+    "How can I save $150 on dining?"
+  ]
+}
+"""
+
+def generate_copilot_response(user_message, history, summary_data, all_expenses, custom_api_key=None):
+    """
+    Answers user queries conversationally using Gemini with full ground-truth financial ledger context.
+    """
+    api_key = get_gemini_api_key(custom_api_key)
+    if not api_key:
+        raise ValueError("Gemini API key is not configured. Please set your key in Settings or environment variables.")
+
+    client = genai.Client(api_key=api_key)
+    models_to_try = ["gemini-3.5-flash", "gemini-3.1-flash-lite", "gemini-3.7-flash"]
+
+    # Build context snapshot
+    period = summary_data.get("active_month_label", "Current Overview")
+    total_spent = summary_data.get("current_month_spend", 0.0)
+    total_budget = summary_data.get("total_monthly_budget", 0.0)
+    remaining = summary_data.get("remaining_budget", 0.0)
+    budget_usage = summary_data.get("budget_usage_pct", 0.0)
+    cat_breakdown = summary_data.get("category_breakdown", [])
+    budget_comp = summary_data.get("budget_comparison", [])
+    
+    # Send up to 60 recent expenses for deep context
+    recent_txns = all_expenses[:60] if all_expenses else []
+
+    context_payload = {
+        "active_period": period,
+        "total_spent": total_spent,
+        "total_budget": total_budget,
+        "remaining_budget": remaining,
+        "budget_usage_percent": budget_usage,
+        "category_spending": cat_breakdown,
+        "category_budgets": budget_comp,
+        "recent_transactions_sample": recent_txns,
+        "total_transactions_count": len(all_expenses)
+    }
+
+    conversation_text = ""
+    if history and isinstance(history, list):
+        for msg in history[-8:]:
+            role = "User" if msg.get("role") == "user" else "Copilot"
+            conversation_text += f"{role}: {msg.get('text', '')}\n"
+
+    prompt = f"""{COPILOT_SYSTEM_PROMPT}
+
+=== USER'S LIVE FINANCIAL LEDGER DATA ===
+{json.dumps(context_payload, indent=2)}
+
+=== CONVERSATION HISTORY ===
+{conversation_text}
+
+User Question: {user_message}
+
+Return ONLY the JSON response with 'reply' and 'suggested_followups':"""
+
+    raw_response_text = ""
+    last_error = None
+
+    for model_name in models_to_try:
+        try:
+            chat = client.chats.create(model=model_name)
+            res = chat.send_message(prompt)
+            raw_response_text = res.text
+            if raw_response_text:
+                break
+        except Exception as err:
+            last_error = err
+            continue
+
+    if not raw_response_text:
+        raise ValueError(f"Copilot query failed: {last_error}")
+
+    text = raw_response_text.strip()
+    if text.startswith("```"):
+        text = re.sub(r"^```(?:json)?\n?", "", text)
+        text = re.sub(r"\n?```$", "", text)
+
+    match = re.search(r'\{.*\}', text, re.DOTALL)
+    if match:
+        try:
+            return json.loads(match.group(0))
+        except Exception:
+            pass
+
+    try:
+        return json.loads(text)
+    except Exception:
+        return {
+            "reply": text,
+            "suggested_followups": [
+                "What is my highest expense category?",
+                "How much budget do I have left?"
+            ]
+        }
+

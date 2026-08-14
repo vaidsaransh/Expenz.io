@@ -61,13 +61,17 @@
             </div>
 
             <div class="nav-right">
-                <button class="btn btn-ai-sparkle btn-icon desktop-only" id="openStatementModalBtn" title="Upload Bank / Amex Statements for AI Parsing">
+                <button class="btn btn-ai-sparkle btn-icon desktop-only" id="openCopilotNavBtn" title="Ask Expenz AI Financial Copilot">
+                    <i class="fa-solid fa-comments"></i>
+                    <span>Ask AI</span>
+                </button>
+                <button class="btn btn-secondary btn-icon desktop-only" id="openStatementModalBtn" title="Upload Bank / Amex Statements for AI Parsing">
                     <i class="fa-solid fa-wand-magic-sparkles"></i>
-                    <span>AI Import Statement</span>
+                    <span>AI Import</span>
                 </button>
                 <a href="/download-excel" class="btn btn-secondary btn-icon desktop-only" id="downloadExcelBtn" title="Download Excel Spreadsheet">
                     <i class="fa-solid fa-download"></i>
-                    <span>Export Excel</span>
+                    <span>Export</span>
                 </a>
                 <button class="btn btn-secondary btn-icon desktop-only" id="openBudgetsModalBtn">
                     <i class="fa-solid fa-sliders"></i>
@@ -881,6 +885,14 @@
                 <button class="modal-close-btn" id="closeMobAiSheetBtn">&times;</button>
             </div>
             <div class="sheet-actions-list">
+                <button class="sheet-action-item" id="mobActionOpenCopilot">
+                    <div class="action-item-icon" style="background: rgba(99, 102, 241, 0.15); color: var(--accent-primary);"><i class="fa-solid fa-comments"></i></div>
+                    <div class="action-item-text">
+                        <strong>Ask Expenz AI Copilot</strong>
+                        <span>Chat with your personal financial AI advisor</span>
+                    </div>
+                    <i class="fa-solid fa-chevron-right text-muted"></i>
+                </button>
                 <button class="sheet-action-item" id="mobActionImportStatement">
                     <div class="action-item-icon icon-purple"><i class="fa-solid fa-file-invoice-dollar"></i></div>
                     <div class="action-item-text">
@@ -959,6 +971,93 @@
                     <i class="fa-solid fa-chevron-right text-muted"></i>
                 </button>
             </div>
+        </div>
+    </div>
+
+    <!-- Floating AI Copilot Launcher Widget -->
+    <div class="copilot-floating-launcher" id="copilotFloatingLauncher">
+        <button class="copilot-launcher-btn glow-button" id="openCopilotFloatingBtn" title="Ask Expenz AI Copilot">
+            <div class="copilot-btn-icon">
+                <i class="fa-solid fa-comments"></i>
+            </div>
+            <span class="copilot-btn-label desktop-only">Ask AI Copilot</span>
+            <span class="copilot-pulse-dot"></span>
+        </button>
+    </div>
+
+    <!-- Expenz AI Copilot Chat Drawer Modal -->
+    <div class="modal-backdrop copilot-backdrop" id="copilotModal">
+        <div class="modal-dialog glass-card copilot-dialog">
+            <div class="sheet-drag-handle"></div>
+            <div class="copilot-header">
+                <div class="copilot-header-left">
+                    <div class="copilot-avatar">
+                        <i class="fa-solid fa-brain"></i>
+                        <span class="copilot-online-indicator"></span>
+                    </div>
+                    <div>
+                        <div class="copilot-title-row">
+                            <h3 class="copilot-title">Expenz AI Copilot</h3>
+                            <span class="copilot-badge">Live Ledger Synced</span>
+                        </div>
+                        <p class="copilot-subtitle">Your personal financial intelligence assistant</p>
+                    </div>
+                </div>
+                <div class="copilot-header-actions">
+                    <button type="button" class="btn-copilot-header" id="clearCopilotChatBtn" title="Clear Chat History">
+                        <i class="fa-solid fa-rotate-left"></i>
+                    </button>
+                    <button type="button" class="modal-close-btn" id="closeCopilotBtn">&times;</button>
+                </div>
+            </div>
+
+            <!-- Quick Suggestion Starter Chips -->
+            <div class="copilot-quick-chips" id="copilotQuickChips">
+                <button type="button" class="copilot-chip" data-prompt="Where did I spend the most this month?">
+                    <i class="fa-solid fa-chart-pie"></i> Top spend?
+                </button>
+                <button type="button" class="copilot-chip" data-prompt="Am I over budget in any category?">
+                    <i class="fa-solid fa-triangle-exclamation"></i> Over budget?
+                </button>
+                <button type="button" class="copilot-chip" data-prompt="What was my largest purchase this month?">
+                    <i class="fa-solid fa-receipt"></i> Largest expense?
+                </button>
+                <button type="button" class="copilot-chip" data-prompt="Give me 3 actionable tips to save $200 next month">
+                    <i class="fa-solid fa-piggy-bank"></i> How to save $200?
+                </button>
+            </div>
+
+            <!-- Chat Messages Scroll Container -->
+            <div class="copilot-messages-container" id="copilotMessagesList">
+                <div class="copilot-msg copilot-msg-ai">
+                    <div class="msg-avatar"><i class="fa-solid fa-brain"></i></div>
+                    <div class="msg-bubble">
+                        <p>👋 Hi! I'm your <strong>Expenz AI Copilot</strong>. I have real-time access to your spreadsheet, category budgets, and transactions.</p>
+                        <p style="margin-top: 6px; font-size: 12px; color: var(--text-secondary);">Ask me anything about your finances, top spending, budget forecasts, or how to save money!</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Typing Indicator -->
+            <div class="copilot-typing-indicator" id="copilotTyping" style="display: none;">
+                <div class="typing-bubble">
+                    <div class="typing-dot"></div>
+                    <div class="typing-dot"></div>
+                    <div class="typing-dot"></div>
+                </div>
+                <span class="typing-label">Copilot is analyzing your spreadsheet...</span>
+            </div>
+
+            <!-- Dynamic Follow-up Suggestions Container -->
+            <div class="copilot-followups-container" id="copilotFollowups" style="display: none;"></div>
+
+            <!-- Chat Input Bar -->
+            <form class="copilot-input-bar" id="copilotChatForm">
+                <input type="text" id="copilotInput" class="copilot-input" placeholder="Ask about spending, budgets, trends, or savings..." autocomplete="off">
+                <button type="submit" class="copilot-send-btn glow-button" id="copilotSendBtn" aria-label="Send Message">
+                    <i class="fa-solid fa-paper-plane"></i>
+                </button>
+            </form>
         </div>
     </div>
 

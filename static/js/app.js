@@ -72,6 +72,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initDateInputs();
     initEventListeners();
     initWorkspaceSync();
+    initCopilot();
     loadInitialData();
 });
 
@@ -1866,6 +1867,211 @@ function initWorkspaceSync() {
     document.getElementById('mobActionWorkspaceSync')?.addEventListener('click', () => {
         document.getElementById('mobManageActionSheet')?.classList.remove('active');
         openWorkspaceModal();
+    });
+}
+
+/* ==========================================================================
+   Expenz AI Financial Copilot Chatbot
+   ========================================================================== */
+let copilotChatHistory = [];
+
+function openCopilotModal() {
+    const modal = document.getElementById('copilotModal');
+    if (modal) modal.classList.add('active');
+    setTimeout(() => {
+        document.getElementById('copilotInput')?.focus();
+    }, 150);
+}
+
+function closeCopilotModal() {
+    const modal = document.getElementById('copilotModal');
+    if (modal) modal.classList.remove('active');
+}
+
+function clearCopilotHistory() {
+    copilotChatHistory = [];
+    const list = document.getElementById('copilotMessagesList');
+    if (list) {
+        list.innerHTML = `
+            <div class="copilot-msg copilot-msg-ai">
+                <div class="msg-avatar"><i class="fa-solid fa-brain"></i></div>
+                <div class="msg-bubble">
+                    <p>👋 Hi! I'm your <strong>Expenz AI Copilot</strong>. I have real-time access to your spreadsheet, category budgets, and transactions.</p>
+                    <p style="margin-top: 6px; font-size: 12px; color: var(--text-secondary);">Ask me anything about your finances, top spending, budget forecasts, or how to save money!</p>
+                </div>
+            </div>
+        `;
+    }
+    const followups = document.getElementById('copilotFollowups');
+    if (followups) {
+        followups.innerHTML = '';
+        followups.style.display = 'none';
+    }
+    showToast('Chat history cleared', 'info');
+}
+
+function appendCopilotMessage(role, text) {
+    const list = document.getElementById('copilotMessagesList');
+    if (!list) return;
+
+    const msgDiv = document.createElement('div');
+    msgDiv.className = `copilot-msg copilot-msg-${role}`;
+
+    if (role === 'ai') {
+        const formatted = formatCopilotMarkdown(text);
+        msgDiv.innerHTML = `
+            <div class="msg-avatar"><i class="fa-solid fa-brain"></i></div>
+            <div class="msg-bubble">${formatted}</div>
+        `;
+    } else {
+        msgDiv.innerHTML = `
+            <div class="msg-bubble"><p>${escapeHtml(text)}</p></div>
+        `;
+    }
+
+    list.appendChild(msgDiv);
+    list.scrollTop = list.scrollHeight;
+}
+
+function formatCopilotMarkdown(text) {
+    if (!text) return '';
+    let html = escapeHtml(text);
+    // Bold: **text**
+    html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+    // Italic: *text*
+    html = html.replace(/\*(.*?)\*/g, '<em>$1</em>');
+    // Monospace / Currency code: `code`
+    html = html.replace(/`(.*?)`/g, '<code style="font-family: var(--font-mono); background: rgba(0,0,0,0.1); padding: 1px 4px; border-radius: 4px;">$1</code>');
+
+    // Parse lines for bullet lists & paragraphs
+    const lines = html.split('\n');
+    let inList = false;
+    let result = [];
+
+    for (let rawLine of lines) {
+        const line = rawLine.trim();
+        if (line.startsWith('- ') || line.startsWith('* ')) {
+            if (!inList) {
+                result.push('<ul>');
+                inList = true;
+            }
+            result.push(`<li>${line.substring(2)}</li>`);
+        } else if (/^\d+\.\s/.test(line)) {
+            if (!inList) {
+                result.push('<ol>');
+                inList = true;
+            }
+            result.push(`<li>${line.replace(/^\d+\.\s/, '')}</li>`);
+        } else {
+            if (inList) {
+                result.push('</ul>');
+                inList = false;
+            }
+            if (line) {
+                result.push(`<p>${line}</p>`);
+            }
+        }
+    }
+    if (inList) result.push('</ul>');
+    return result.join('');
+}
+
+async function sendCopilotPrompt(messageText) {
+    const input = document.getElementById('copilotInput');
+    const typingIndicator = document.getElementById('copilotTyping');
+    const followupsContainer = document.getElementById('copilotFollowups');
+    const sendBtn = document.getElementById('copilotSendBtn');
+
+    const prompt = messageText.trim();
+    if (!prompt) return;
+
+    if (input) input.value = '';
+    if (followupsContainer) followupsContainer.style.display = 'none';
+
+    // Append user message
+    appendCopilotMessage('user', prompt);
+    copilotChatHistory.push({ role: 'user', text: prompt });
+
+    if (typingIndicator) typingIndicator.style.display = 'flex';
+    if (sendBtn) sendBtn.disabled = true;
+
+    try {
+        const res = await apiFetch('/api/copilot/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                message: prompt,
+                history: copilotChatHistory,
+                month: state.selectedMonth || 'auto'
+            })
+        });
+
+        const data = await res.json();
+        if (data.success && data.data) {
+            const reply = data.data.reply || "I couldn't analyze that right now. Please try again.";
+            appendCopilotMessage('ai', reply);
+            copilotChatHistory.push({ role: 'ai', text: reply });
+
+            // Render suggested followups
+            if (data.data.suggested_followups && Array.isArray(data.data.suggested_followups) && data.data.suggested_followups.length > 0) {
+                if (followupsContainer) {
+                    followupsContainer.innerHTML = data.data.suggested_followups.map(q => 
+                        `<button type="button" class="followup-btn"><i class="fa-solid fa-arrow-right text-accent" style="font-size: 10px;"></i> ${escapeHtml(q)}</button>`
+                    ).join('');
+                    followupsContainer.style.display = 'flex';
+
+                    // Attach click handlers
+                    followupsContainer.querySelectorAll('.followup-btn').forEach(btn => {
+                        btn.addEventListener('click', () => {
+                            sendCopilotPrompt(btn.textContent.trim());
+                        });
+                    });
+                }
+            }
+        } else {
+            const errorMsg = data.error || 'Failed to get answer from Copilot';
+            appendCopilotMessage('ai', `⚠️ **Error**: ${errorMsg}`);
+            if (errorMsg.includes('API key')) {
+                openApiKeyModal();
+            }
+        }
+    } catch (err) {
+        appendCopilotMessage('ai', `⚠️ **Network Error**: ${err.message}`);
+    } finally {
+        if (typingIndicator) typingIndicator.style.display = 'none';
+        if (sendBtn) sendBtn.disabled = false;
+    }
+}
+
+function initCopilot() {
+    // Triggers
+    document.getElementById('openCopilotNavBtn')?.addEventListener('click', openCopilotModal);
+    document.getElementById('openCopilotFloatingBtn')?.addEventListener('click', openCopilotModal);
+    document.getElementById('closeCopilotBtn')?.addEventListener('click', closeCopilotModal);
+    document.getElementById('clearCopilotChatBtn')?.addEventListener('click', clearCopilotHistory);
+    
+    document.getElementById('mobActionOpenCopilot')?.addEventListener('click', () => {
+        document.getElementById('mobAiActionSheet')?.classList.remove('active');
+        openCopilotModal();
+    });
+
+    // Form submit
+    document.getElementById('copilotChatForm')?.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const input = document.getElementById('copilotInput');
+        if (input && input.value.trim()) {
+            sendCopilotPrompt(input.value.trim());
+        }
+    });
+
+    // Quick Starter Chips
+    document.querySelectorAll('.copilot-chip').forEach(chip => {
+        chip.addEventListener('click', () => {
+            const prompt = chip.dataset.prompt;
+            if (prompt) {
+                sendCopilotPrompt(prompt);
+            }
+        });
     });
 }
 

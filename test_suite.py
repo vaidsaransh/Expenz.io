@@ -155,5 +155,25 @@ class TestExpenseTracker(unittest.TestCase):
         self.client.post('/api/expenses/clear-all', headers={"X-User-Id": "user_alice"})
         self.client.post('/api/expenses/clear-all', headers={"X-User-Id": "user_bob"})
 
+    def test_09_copilot_chat(self):
+        # Log sample expense
+        self.client.post('/api/expenses', 
+            headers={"X-User-Id": "user_copilot_test"},
+            json={"date": "2026-08-05", "amount": 65.0, "category": "Food & Dining", "description": "Italian Trattoria"}
+        )
+
+        res = self.client.post('/api/copilot/chat',
+            headers={"X-User-Id": "user_copilot_test"},
+            json={"message": "What is my top expense this month?", "history": [], "month": "2026-08"}
+        )
+        self.assertEqual(res.status_code, 200)
+        data = res.get_json()
+        self.assertTrue(data["success"])
+        self.assertIn("reply", data["data"])
+        self.assertIn("suggested_followups", data["data"])
+
+        # Clean up
+        self.client.post('/api/expenses/clear-all', headers={"X-User-Id": "user_copilot_test"})
+
 if __name__ == '__main__':
     unittest.main()

@@ -274,6 +274,37 @@ def generate_insights():
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
+@app.route('/api/copilot/chat', methods=['POST'])
+def copilot_chat():
+    try:
+        user_id = get_current_user_id()
+        data = request.get_json() or {}
+        message = data.get('message', '').strip()
+        history = data.get('history', [])
+        month = data.get('month')
+        custom_key = request.headers.get("X-Gemini-API-Key") or data.get("gemini_api_key")
+
+        if not message:
+            return jsonify({"success": False, "error": "Message is required"}), 400
+
+        summary = excel_manager.get_summary_stats(month=month, user_id=user_id)
+        all_expenses = excel_manager.get_expenses(user_id=user_id)
+
+        response_data = gemini_parser.generate_copilot_response(
+            user_message=message,
+            history=history,
+            summary_data=summary,
+            all_expenses=all_expenses,
+            custom_api_key=custom_key
+        )
+
+        return jsonify({
+            "success": True,
+            "data": response_data
+        })
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
 @app.route('/api/config/api-key', methods=['GET', 'POST'])
 def manage_api_key():
     if request.method == 'GET':
