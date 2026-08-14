@@ -1,0 +1,1245 @@
+/**
+ * Expenz.io - Interactive Modern Expense & Budget Tracker Client
+ * Includes Gemini AI Statement Analyzer for Bank & Amex Statements
+ */
+
+// Application State
+const state = {
+    categories: [],
+    budgets: {},
+    summary: null,
+    expenses: [],
+    pagination: {
+        page: 1,
+        limit: 8,
+        total_items: 0,
+        total_pages: 1
+    },
+    filters: {
+        category: 'all',
+        payment_method: 'all',
+        search: ''
+    },
+    charts: {
+        timeline: null,
+        categoryDonut: null,
+        budgetBar: null,
+        payment: null
+    },
+    isEditing: false,
+    theme: localStorage.getItem('theme') || 'dark',
+    aiParsedTransactions: []
+};
+
+// DOM Ready
+document.addEventListener('DOMContentLoaded', () => {
+    initTheme();
+    initDateInputs();
+    initEventListeners();
+    loadInitialData();
+});
+
+/* ==========================================================================
+   Theme Management
+   ========================================================================== */
+function initTheme() {
+    document.documentElement.setAttribute('data-theme', state.theme);
+    updateThemeIcon();
+}
+
+function toggleTheme() {
+    state.theme = state.theme === 'dark' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', state.theme);
+    localStorage.setItem('theme', state.theme);
+    updateThemeIcon();
+    
+    if (state.summary) {
+        renderCharts(state.summary);
+    }
+}
+
+function updateThemeIcon() {
+    const btn = document.getElementById('themeToggleBtn');
+    if (btn) {
+        btn.innerHTML = state.theme === 'dark' 
+            ? '<i class="fa-solid fa-sun"></i>' 
+            : '<i class="fa-solid fa-moon"></i>';
+    }
+}
+
+/* ==========================================================================
+   Date Defaults
+   ========================================================================== */
+function initDateInputs() {
+    const today = new Date().toISOString().split('T')[0];
+    const quickDate = document.getElementById('quickDate');
+    const modalDate = document.getElementById('modalDate');
+    if (quickDate) quickDate.value = today;
+    if (modalDate) modalDate.value = today;
+}
+
+/* ==========================================================================
+   Event Listeners
+   ========================================================================== */
+function initEventListeners() {
+    // Theme Toggle
+    document.getElementById('themeToggleBtn')?.addEventListener('click', toggleTheme);
+
+    // Modal Triggers
+    document.getElementById('openAddModalBtn')?.addEventListener('click', () => openExpenseModal());
+    document.getElementById('closeExpenseModalBtn')?.addEventListener('click', closeExpenseModal);
+    document.getElementById('cancelExpenseModalBtn')?.addEventListener('click', closeExpenseModal);
+
+    document.getElementById('openBudgetsModalBtn')?.addEventListener('click', openBudgetsModal);
+    document.getElementById('closeBudgetsModalBtn')?.addEventListener('click', closeBudgetsModal);
+    document.getElementById('cancelBudgetsModalBtn')?.addEventListener('click', closeBudgetsModal);
+
+    // AI Statement Modal Triggers
+    document.getElementById('openStatementModalBtn')?.addEventListener('click', openStatementModal);
+    document.getElementById('closeStatementModalBtn')?.addEventListener('click', closeStatementModal);
+    document.getElementById('cancelStatementReviewBtn')?.addEventListener('click', closeStatementModal);
+    document.getElementById('reUploadStatementBtn')?.addEventListener('click', showUploadStep);
+
+    initDropzoneEvents();
+
+    // Reset / Clear All Expenses Action
+    document.getElementById('clearAllExpensesBtn')?.addEventListener('click', handleClearAllExpenses);
+
+    // Forms
+    document.getElementById('quickLogForm')?.addEventListener('submit', handleQuickLogSubmit);
+    document.getElementById('expenseForm')?.addEventListener('submit', handleExpenseModalSubmit);
+    document.getElementById('budgetsForm')?.addEventListener('submit', handleBudgetsSubmit);
+
+    // Bulk Import Action
+    document.getElementById('confirmBulkImportBtn')?.addEventListener('click', handleBulkImportConfirm);
+    document.getElementById('toggleSelectAllBtn')?.addEventListener('click', toggleSelectAllReviewRows);
+    document.getElementById('selectAllCheckbox')?.addEventListener('change', (e) => {
+        document.querySelectorAll('.review-row-check').forEach(cb => cb.checked = e.target.checked);
+        recalcReviewSummary();
+    });
+
+    // Quick Preset Chips in Modal
+    document.querySelectorAll('.chip-preset').forEach(chip => {
+        chip.addEventListener('click', (e) => {
+            const addVal = parseFloat(e.target.dataset.val);
+            const amountInput = document.getElementById('modalAmount');
+            const currentVal = parseFloat(amountInput.value) || 0;
+            amountInput.value = (currentVal + addVal).toFixed(2);
+        });
+    });
+
+    // Table Filtering & Search
+    const searchInput = document.getElementById('tableSearchInput');
+    let searchDebounce = null;
+    searchInput?.addEventListener('input', (e) => {
+        clearTimeout(searchDebounce);
+        const clearBtn = document.getElementById('clearSearchBtn');
+        if (clearBtn) clearBtn.style.display = e.target.value ? 'block' : 'none';
+        searchDebounce = setTimeout(() => {
+            state.filters.search = e.target.value.trim();
+            state.pagination.page = 1;
+            fetchExpenses();
+        }, 300);
+    });
+
+    document.getElementById('clearSearchBtn')?.addEventListener('click', () => {
+        if (searchInput) searchInput.value = '';
+        document.getElementById('clearSearchBtn').style.display = 'none';
+        state.filters.search = '';
+        state.pagination.page = 1;
+        fetchExpenses();
+    });
+
+    document.getElementById('tableCategoryFilter')?.addEventListener('change', (e) => {
+        state.filters.category = e.target.value;
+        state.pagination.page = 1;
+        fetchExpenses();
+    });
+
+    document.getElementById('tablePaymentFilter')?.addEventListener('change', (e) => {
+        state.filters.payment_method = e.target.value;
+        state.pagination.page = 1;
+        fetchExpenses();
+    });
+
+    // Pagination
+    document.getElementById('prevPageBtn')?.addEventListener('click', () => {
+        if (state.pagination.page > 1) {
+            state.pagination.page--;
+            fetchExpenses();
+        }
+    });
+
+    document.getElementById('nextPageBtn')?.addEventListener('click', () => {
+        if (state.pagination.page < state.pagination.total_pages) {
+            state.pagination.page++;
+            fetchExpenses();
+        }
+    });
+
+    // Keyboard Shortcuts
+    document.addEventListener('keydown', (e) => {
+        if ((e.key === 'n' || e.key === 'N') && !['INPUT', 'SELECT', 'TEXTAREA'].includes(document.activeElement.tagName)) {
+            e.preventDefault();
+            openExpenseModal();
+        }
+        if (e.key === 'Escape') {
+            closeExpenseModal();
+            closeBudgetsModal();
+            closeStatementModal();
+        }
+    });
+}
+
+/* ==========================================================================
+   AI Statement Analyzer & Upload Dropzone
+   ========================================================================== */
+function openStatementModal() {
+    showUploadStep();
+    document.getElementById('statementModal')?.classList.add('active');
+}
+
+function closeStatementModal() {
+    document.getElementById('statementModal')?.classList.remove('active');
+}
+
+function showUploadStep() {
+    document.getElementById('statementUploadStep').style.display = 'block';
+    document.getElementById('statementProcessingStep').style.display = 'none';
+    document.getElementById('statementReviewStep').style.display = 'none';
+    const fileInput = document.getElementById('statementFileInput');
+    if (fileInput) fileInput.value = '';
+}
+
+function showProcessingStep(fileName) {
+    document.getElementById('statementUploadStep').style.display = 'none';
+    document.getElementById('statementProcessingStep').style.display = 'block';
+    document.getElementById('statementReviewStep').style.display = 'none';
+    const nameEl = document.getElementById('processingFileName');
+    if (nameEl) nameEl.textContent = `Analyzing "${fileName}" with Gemini AI...`;
+}
+
+function showReviewStep(transactions) {
+    document.getElementById('statementUploadStep').style.display = 'none';
+    document.getElementById('statementProcessingStep').style.display = 'none';
+    document.getElementById('statementReviewStep').style.display = 'block';
+    renderReviewTable(transactions);
+}
+
+function initDropzoneEvents() {
+    const dropzone = document.getElementById('statementDropzone');
+    const fileInput = document.getElementById('statementFileInput');
+
+    if (!dropzone || !fileInput) return;
+
+    dropzone.addEventListener('click', () => fileInput.click());
+
+    dropzone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        dropzone.classList.add('dragover');
+    });
+
+    dropzone.addEventListener('dragleave', () => {
+        dropzone.classList.remove('dragover');
+    });
+
+    dropzone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dropzone.classList.remove('dragover');
+        if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+            handleStatementUpload(e.dataTransfer.files[0]);
+        }
+    });
+
+    fileInput.addEventListener('change', (e) => {
+        if (e.target.files && e.target.files.length > 0) {
+            handleStatementUpload(e.target.files[0]);
+        }
+    });
+}
+
+async function handleStatementUpload(file) {
+    if (!file) return;
+    
+    showProcessingStep(file.name);
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+        const res = await fetch('/api/upload-statement', {
+            method: 'POST',
+            body: formData
+        });
+
+        const data = await res.json();
+        if (data.success && data.transactions && data.transactions.length > 0) {
+            state.aiParsedTransactions = data.transactions;
+            showReviewStep(data.transactions);
+            showToast(`Gemini extracted ${data.count} transactions! Review before saving.`, 'success');
+        } else if (data.success && (!data.transactions || data.transactions.length === 0)) {
+            showToast('No expense transactions detected in this statement.', 'error');
+            showUploadStep();
+        } else {
+            showToast(data.error || 'Failed to parse statement', 'error');
+            showUploadStep();
+        }
+    } catch (err) {
+        showToast('Error uploading statement: ' + err.message, 'error');
+        showUploadStep();
+    }
+}
+
+function formatDateForInput(dateStr) {
+    if (!dateStr) return new Date().toISOString().split('T')[0];
+    const s = String(dateStr).trim().split('T')[0].split(' ')[0];
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+    const parsed = new Date(dateStr);
+    if (!isNaN(parsed.getTime())) {
+        return parsed.toISOString().split('T')[0];
+    }
+    return new Date().toISOString().split('T')[0];
+}
+
+function renderReviewTable(transactions) {
+    const tbody = document.getElementById('statementReviewTableBody');
+    if (!tbody) return;
+
+    tbody.innerHTML = transactions.map((t, idx) => {
+        const catOptions = state.categories.map(c => 
+            `<option value="${c.name}" ${c.name === t.category ? 'selected' : ''}>${c.name}</option>`
+        ).join('');
+        const formattedDate = formatDateForInput(t.date);
+
+        return `
+            <tr data-index="${idx}" class="review-row">
+                <td>
+                    <input type="checkbox" class="review-row-check" checked onchange="recalcReviewSummary()">
+                </td>
+                <td>
+                    <input type="date" class="review-row-date" value="${formattedDate}">
+                </td>
+                <td>
+                    <input type="text" class="review-row-desc" value="${escapeHtml(t.description || 'Expense')}">
+                </td>
+                <td>
+                    <select class="review-row-cat">
+                        ${catOptions}
+                    </select>
+                </td>
+                <td>
+                    <input type="text" class="review-row-pay" value="${escapeHtml(t.payment_method || 'Credit Card')}">
+                </td>
+                <td>
+                    <input type="number" step="0.01" min="0.01" class="review-row-amt" value="${(parseFloat(t.amount) || 0).toFixed(2)}" oninput="recalcReviewSummary()">
+                </td>
+                <td class="text-center">
+                    <button type="button" class="review-row-del-btn" onclick="removeReviewRow(${idx})" title="Remove">
+                        <i class="fa-solid fa-trash-can"></i>
+                    </button>
+                </td>
+            </tr>
+        `;
+    }).join('');
+
+    recalcReviewSummary();
+}
+
+function removeReviewRow(idx) {
+    const row = document.querySelector(`.review-row[data-index="${idx}"]`);
+    if (row) {
+        row.remove();
+        recalcReviewSummary();
+    }
+}
+
+function toggleSelectAllReviewRows() {
+    const checkboxes = document.querySelectorAll('.review-row-check');
+    const allChecked = Array.from(checkboxes).every(cb => cb.checked);
+    checkboxes.forEach(cb => cb.checked = !allChecked);
+    const selectAllCb = document.getElementById('selectAllCheckbox');
+    if (selectAllCb) selectAllCb.checked = !allChecked;
+    recalcReviewSummary();
+}
+
+function recalcReviewSummary() {
+    let total = 0;
+    let count = 0;
+
+    document.querySelectorAll('.review-row').forEach(row => {
+        const isChecked = row.querySelector('.review-row-check')?.checked;
+        const amt = parseFloat(row.querySelector('.review-row-amt')?.value) || 0;
+        if (isChecked) {
+            total += amt;
+            count++;
+        }
+    });
+
+    const badge = document.getElementById('reviewCountBadge');
+    const totalEl = document.getElementById('reviewTotalAmount');
+    const btnText = document.getElementById('confirmImportBtnText');
+
+    if (badge) badge.textContent = `${count} selected (${document.querySelectorAll('.review-row').length} total)`;
+    if (totalEl) totalEl.textContent = formatCurrency(total);
+    if (btnText) btnText.textContent = `Import ${count} to Excel`;
+}
+
+async function handleBulkImportConfirm() {
+    const btn = document.getElementById('confirmBulkImportBtn');
+    const btnText = document.getElementById('confirmImportBtnText');
+    const itemsToImport = [];
+
+    document.querySelectorAll('.review-row').forEach(row => {
+        const isChecked = row.querySelector('.review-row-check')?.checked;
+        if (isChecked) {
+            let date = row.querySelector('.review-row-date')?.value;
+            if (!date) {
+                date = new Date().toISOString().split('T')[0];
+            }
+            const description = (row.querySelector('.review-row-desc')?.value || 'Expense').trim();
+            const category = row.querySelector('.review-row-cat')?.value || 'Miscellaneous';
+            const payment_method = (row.querySelector('.review-row-pay')?.value || 'Credit Card').trim();
+            const amount = parseFloat(row.querySelector('.review-row-amt')?.value) || 0;
+
+            if (amount > 0) {
+                itemsToImport.push({ date, description, category, payment_method, amount });
+            }
+        }
+    });
+
+    if (itemsToImport.length === 0) {
+        showToast('Please select at least one valid transaction to import.', 'error');
+        return;
+    }
+
+    if (btn) btn.disabled = true;
+    if (btnText) btnText.textContent = 'Importing into Excel...';
+
+    try {
+        const res = await fetch('/api/expenses/bulk', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ items: itemsToImport })
+        });
+
+        const data = await res.json();
+        if (data.success) {
+            showToast(`🎉 Successfully imported ${data.count} expenses into Excel!`, 'success');
+            closeStatementModal();
+            
+            // Reset filters to show new records immediately
+            state.filters.category = 'all';
+            state.filters.payment_method = 'all';
+            state.filters.search = '';
+            state.pagination.page = 1;
+            
+            const catFilter = document.getElementById('tableCategoryFilter');
+            const payFilter = document.getElementById('tablePaymentFilter');
+            const searchInput = document.getElementById('tableSearchInput');
+            if (catFilter) catFilter.value = 'all';
+            if (payFilter) payFilter.value = 'all';
+            if (searchInput) searchInput.value = '';
+            
+            await Promise.all([fetchSummary(), fetchExpenses()]);
+        } else {
+            showToast(data.error || 'Failed to import expenses', 'error');
+        }
+    } catch (err) {
+        showToast('Error importing expenses: ' + err.message, 'error');
+    } finally {
+        if (btn) btn.disabled = false;
+        if (btnText) btnText.textContent = 'Import to Excel';
+    }
+}
+
+/* ==========================================================================
+   Data Fetching & Init
+   ========================================================================== */
+async function loadInitialData() {
+    try {
+        await fetchCategories();
+        await Promise.all([
+            fetchSummary(),
+            fetchExpenses()
+        ]);
+    } catch (err) {
+        showToast('Error loading data: ' + err.message, 'error');
+    }
+}
+
+async function fetchCategories() {
+    const res = await fetch('/api/categories');
+    const data = await res.json();
+    if (data.success) {
+        state.categories = data.data;
+        populateCategoryDropdowns(data.data);
+    }
+}
+
+function populateCategoryDropdowns(categories) {
+    const quickSelect = document.getElementById('quickCategory');
+    const modalSelect = document.getElementById('modalCategory');
+    const tableFilter = document.getElementById('tableCategoryFilter');
+
+    if (quickSelect) {
+        quickSelect.innerHTML = '<option value="" disabled selected>Category</option>';
+        categories.forEach(c => {
+            quickSelect.innerHTML += `<option value="${c.name}">${c.name}</option>`;
+        });
+    }
+
+    if (modalSelect) {
+        modalSelect.innerHTML = '<option value="" disabled selected>Select Category</option>';
+        categories.forEach(c => {
+            modalSelect.innerHTML += `<option value="${c.name}">${c.name}</option>`;
+        });
+    }
+
+    if (tableFilter) {
+        tableFilter.innerHTML = '<option value="all">All Categories</option>';
+        categories.forEach(c => {
+            tableFilter.innerHTML += `<option value="${c.name}">${c.name}</option>`;
+        });
+    }
+}
+
+async function fetchSummary() {
+    try {
+        const res = await fetch('/api/summary');
+        const data = await res.json();
+        if (data.success) {
+            state.summary = data.data;
+            updateDashboardMetrics(data.data);
+            renderCharts(data.data);
+        }
+    } catch (err) {
+        console.error('Failed to fetch summary:', err);
+    }
+}
+
+async function fetchExpenses() {
+    try {
+        const params = new URLSearchParams({
+            page: state.pagination.page,
+            limit: state.pagination.limit,
+            category: state.filters.category,
+            payment_method: state.filters.payment_method,
+            search: state.filters.search
+        });
+
+        const res = await fetch(`/api/expenses?${params.toString()}`);
+        const data = await res.json();
+        if (data.success) {
+            state.expenses = data.data;
+            state.pagination = data.pagination;
+            renderExpensesTable(data.data);
+            updatePaginationUI();
+        }
+    } catch (err) {
+        console.error('Failed to fetch expenses:', err);
+    }
+}
+
+/* ==========================================================================
+   Dashboard Metrics Render
+   ========================================================================== */
+function formatCurrency(num) {
+    return '$' + (num || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function updateDashboardMetrics(summary) {
+    const kpiMonthSpend = document.getElementById('kpiMonthSpend');
+    if (kpiMonthSpend) kpiMonthSpend.textContent = formatCurrency(summary.current_month_spend);
+
+    const kpiGrowthBadge = document.getElementById('kpiGrowthBadge');
+    const kpiGrowthText = document.getElementById('kpiGrowthText');
+    if (kpiGrowthBadge && kpiGrowthText) {
+        const growth = summary.mom_growth_pct;
+        kpiGrowthText.textContent = `${growth >= 0 ? '+' : ''}${growth}% vs last mo`;
+        kpiGrowthBadge.className = `badge ${growth > 10 ? 'badge-warning' : 'badge-success'}`;
+    }
+
+    const kpiTxnCount = document.getElementById('kpiTxnCount');
+    if (kpiTxnCount) kpiTxnCount.textContent = `${summary.current_month_count} entries this month`;
+
+    const kpiTotalBudget = document.getElementById('kpiTotalBudget');
+    if (kpiTotalBudget) kpiTotalBudget.textContent = formatCurrency(summary.total_monthly_budget);
+
+    const progressBar = document.getElementById('kpiBudgetProgressBar');
+    const budgetPctLabel = document.getElementById('kpiBudgetUsagePct');
+    if (progressBar && budgetPctLabel) {
+        const usage = Math.min(summary.budget_usage_pct, 100);
+        progressBar.style.width = `${usage}%`;
+        budgetPctLabel.textContent = `${summary.budget_usage_pct}% spent`;
+        
+        if (summary.budget_usage_pct > 90) {
+            progressBar.style.background = 'linear-gradient(90deg, #f59e0b, #f43f5e)';
+        } else {
+            progressBar.style.background = 'linear-gradient(90deg, #6366f1, #06b6d4)';
+        }
+    }
+
+    const kpiRemaining = document.getElementById('kpiRemainingBudget');
+    const statusBadge = document.getElementById('kpiBudgetStatusBadge');
+    if (kpiRemaining) kpiRemaining.textContent = formatCurrency(summary.remaining_budget);
+    if (statusBadge) {
+        if (summary.budget_usage_pct > 100) {
+            statusBadge.className = 'badge badge-danger';
+            statusBadge.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i> Over Budget';
+        } else if (summary.budget_usage_pct > 80) {
+            statusBadge.className = 'badge badge-warning';
+            statusBadge.innerHTML = '<i class="fa-solid fa-circle-exclamation"></i> Close to Limit';
+        } else {
+            statusBadge.className = 'badge badge-success';
+            statusBadge.innerHTML = '<i class="fa-solid fa-shield-check"></i> On Track';
+        }
+    }
+
+    const kpiDailyAvg = document.getElementById('kpiDailyAvg');
+    const kpiProjected = document.getElementById('kpiProjectedTotal');
+    if (kpiDailyAvg) kpiDailyAvg.textContent = formatCurrency(summary.daily_avg_spend);
+    if (kpiProjected) {
+        const now = new Date();
+        const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+        const projected = summary.daily_avg_spend * daysInMonth;
+        kpiProjected.textContent = `Projected: ${formatCurrency(projected)} by month-end`;
+    }
+
+    const kpiTopCategory = document.getElementById('kpiTopCategory');
+    const kpiTopAmt = document.getElementById('kpiTopCategoryAmount');
+    if (kpiTopCategory) kpiTopCategory.textContent = summary.top_category;
+    if (kpiTopAmt) kpiTopAmt.textContent = formatCurrency(summary.top_category_amount);
+}
+
+/* ==========================================================================
+   Chart.js Visualizations
+   ========================================================================== */
+function getChartTextColor() {
+    return state.theme === 'dark' ? '#94a3b8' : '#475569';
+}
+
+function getChartGridColor() {
+    return state.theme === 'dark' ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.06)';
+}
+
+function renderCharts(summary) {
+    const isDark = state.theme === 'dark';
+    const textColor = getChartTextColor();
+    const gridColor = getChartGridColor();
+
+    // 1. Timeline Area Chart
+    const ctxTimeline = document.getElementById('timelineChart')?.getContext('2d');
+    if (ctxTimeline) {
+        if (state.charts.timeline) state.charts.timeline.destroy();
+
+        const gradient = ctxTimeline.createLinearGradient(0, 0, 0, 240);
+        gradient.addColorStop(0, 'rgba(99, 102, 241, 0.45)');
+        gradient.addColorStop(1, 'rgba(99, 102, 241, 0.0)');
+
+        state.charts.timeline = new Chart(ctxTimeline, {
+            type: 'line',
+            data: {
+                labels: summary.timeline.labels,
+                datasets: [{
+                    label: 'Daily Spending ($)',
+                    data: summary.timeline.values,
+                    borderColor: '#6366f1',
+                    borderWidth: 2.5,
+                    fill: true,
+                    backgroundColor: gradient,
+                    tension: 0.35,
+                    pointBackgroundColor: '#8b5cf6',
+                    pointBorderColor: '#fff',
+                    pointHoverRadius: 6,
+                    pointRadius: 3
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        backgroundColor: isDark ? 'rgba(15, 23, 42, 0.95)' : 'rgba(255, 255, 255, 0.95)',
+                        titleColor: isDark ? '#fff' : '#0f172a',
+                        bodyColor: isDark ? '#cbd5e1' : '#334155',
+                        borderColor: 'rgba(99, 102, 241, 0.3)',
+                        borderWidth: 1,
+                        padding: 10,
+                        callbacks: {
+                            label: (context) => `Spent: $${context.raw.toFixed(2)}`
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        grid: { display: false },
+                        ticks: { color: textColor, font: { size: 11 } }
+                    },
+                    y: {
+                        grid: { color: gridColor },
+                        ticks: {
+                            color: textColor,
+                            font: { size: 11 },
+                            callback: (value) => `$${value}`
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    // 2. Category Donut Chart
+    const ctxDonut = document.getElementById('categoryDonutChart')?.getContext('2d');
+    if (ctxDonut) {
+        if (state.charts.categoryDonut) state.charts.categoryDonut.destroy();
+
+        const catLabels = summary.category_breakdown.map(c => c.category);
+        const catValues = summary.category_breakdown.map(c => c.amount);
+        const catColors = summary.category_breakdown.map(c => c.color);
+
+        state.charts.categoryDonut = new Chart(ctxDonut, {
+            type: 'doughnut',
+            data: {
+                labels: catLabels.length ? catLabels : ['No Expenses'],
+                datasets: [{
+                    data: catValues.length ? catValues : [1],
+                    backgroundColor: catColors.length ? catColors : ['#334155'],
+                    borderWidth: 0,
+                    hoverOffset: 6
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                cutout: '72%',
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: (context) => {
+                                const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                const val = context.raw || 0;
+                                const pct = total > 0 ? ((val / total) * 100).toFixed(1) : 0;
+                                return ` $${val.toFixed(2)} (${pct}%)`;
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        const legendContainer = document.getElementById('categoryLegendContainer');
+        if (legendContainer) {
+            legendContainer.innerHTML = summary.category_breakdown.map(c => `
+                <div class="legend-item" title="${c.category}: $${c.amount.toFixed(2)} (${c.percentage}%)">
+                    <span class="legend-color-dot" style="background-color: ${c.color}"></span>
+                    <span>${c.category} (${c.percentage}%)</span>
+                </div>
+            `).join('') || '<span class="metric-subtext">No expenses recorded yet.</span>';
+        }
+    }
+
+    // 3. Budget vs Actual Bar Chart
+    const ctxBudget = document.getElementById('budgetBarChart')?.getContext('2d');
+    if (ctxBudget) {
+        if (state.charts.budgetBar) state.charts.budgetBar.destroy();
+
+        const budgetCats = summary.budget_comparison.slice(0, 8);
+        const labels = budgetCats.map(b => b.category);
+        const actuals = budgetCats.map(b => b.actual);
+        const limits = budgetCats.map(b => b.budget);
+
+        state.charts.budgetBar = new Chart(ctxBudget, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [
+                    {
+                        label: 'Actual Spend ($)',
+                        data: actuals,
+                        backgroundColor: '#6366f1',
+                        borderRadius: 6
+                    },
+                    {
+                        label: 'Budget Limit ($)',
+                        data: limits,
+                        backgroundColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.12)',
+                        borderRadius: 6
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        labels: { color: textColor, font: { size: 12, weight: 600 } }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: (context) => ` ${context.dataset.label}: $${context.raw.toFixed(2)}`
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        grid: { display: false },
+                        ticks: { color: textColor, font: { size: 11 } }
+                    },
+                    y: {
+                        grid: { color: gridColor },
+                        ticks: {
+                            color: textColor,
+                            font: { size: 11 },
+                            callback: (value) => `$${value}`
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    // 4. Payment Methods Donut Chart
+    const ctxPayment = document.getElementById('paymentChart')?.getContext('2d');
+    if (ctxPayment) {
+        if (state.charts.payment) state.charts.payment.destroy();
+
+        const payLabels = Object.keys(summary.payment_methods);
+        const payValues = Object.values(summary.payment_methods);
+        const payColors = ['#10b981', '#3b82f6', '#f59e0b', '#8b5cf6', '#ec4899', '#64748b'];
+
+        state.charts.payment = new Chart(ctxPayment, {
+            type: 'doughnut',
+            data: {
+                labels: payLabels.length ? payLabels : ['None'],
+                datasets: [{
+                    data: payValues.length ? payValues : [1],
+                    backgroundColor: payColors.slice(0, payLabels.length || 1),
+                    borderWidth: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                cutout: '65%',
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: { color: textColor, font: { size: 11 }, boxWidth: 10 }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: (context) => ` $${context.raw.toFixed(2)}`
+                        }
+                    }
+                }
+            }
+        });
+    }
+}
+
+/* ==========================================================================
+   Transactions Table Render
+   ========================================================================== */
+function renderExpensesTable(expenses) {
+    const tbody = document.getElementById('expensesTableBody');
+    if (!tbody) return;
+
+    if (!expenses || expenses.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="7" class="table-empty-state">
+                    <i class="fa-solid fa-inbox" style="font-size: 24px; margin-bottom: 8px; display: block; opacity: 0.5;"></i>
+                    No expense records found. Try logging a new expense, uploading a statement, or clearing filters!
+                </td>
+            </tr>
+        `;
+        return;
+    }
+
+    const catMetaMap = {};
+    state.categories.forEach(c => {
+        catMetaMap[c.name] = c;
+    });
+
+    tbody.innerHTML = expenses.map(item => {
+        const meta = catMetaMap[item.category] || { color: '#64748B', icon: 'tags' };
+        const paymentIcon = getPaymentIcon(item.payment_method);
+
+        return `
+            <tr data-id="${item.id}">
+                <td class="td-id">#${item.id}</td>
+                <td class="td-date">${item.date}</td>
+                <td class="td-desc">${escapeHtml(item.description || 'No description')}</td>
+                <td>
+                    <span class="category-pill" style="background-color: ${meta.color}20; color: ${meta.color}; border: 1px solid ${meta.color}40;">
+                        <i class="fa-solid fa-${meta.icon}"></i>
+                        ${escapeHtml(item.category)}
+                    </span>
+                </td>
+                <td>
+                    <span class="payment-badge">
+                        <i class="${paymentIcon}"></i>
+                        ${escapeHtml(item.payment_method)}
+                    </span>
+                </td>
+                <td class="td-amount text-right">${formatCurrency(item.amount)}</td>
+                <td class="text-center">
+                    <div class="table-row-actions">
+                        <button class="btn-action-icon" title="Edit Expense" onclick="openExpenseModal(${item.id})">
+                            <i class="fa-solid fa-pencil"></i>
+                        </button>
+                        <button class="btn-action-icon btn-delete" title="Delete Expense" onclick="handleDeleteExpense(${item.id})">
+                            <i class="fa-solid fa-trash-can"></i>
+                        </button>
+                    </div>
+                </td>
+            </tr>
+        `;
+    }).join('');
+}
+
+function getPaymentIcon(method) {
+    if (!method) return 'fa-solid fa-wallet';
+    const m = method.toLowerCase();
+    if (m.includes('amex') || m.includes('american express')) return 'fa-brands fa-cc-amex';
+    if (m.includes('credit')) return 'fa-solid fa-credit-card';
+    if (m.includes('debit')) return 'fa-solid fa-id-card';
+    if (m.includes('cash')) return 'fa-solid fa-money-bill-1-wave';
+    if (m.includes('bank') || m.includes('transfer')) return 'fa-solid fa-building-columns';
+    if (m.includes('upi') || m.includes('online')) return 'fa-solid fa-mobile-screen-button';
+    return 'fa-solid fa-wallet';
+}
+
+function updatePaginationUI() {
+    const { page, limit, total_items, total_pages } = state.pagination;
+    
+    const start = total_items === 0 ? 0 : (page - 1) * limit + 1;
+    const end = Math.min(page * limit, total_items);
+
+    document.getElementById('pagStart').textContent = start;
+    document.getElementById('pagEnd').textContent = end;
+    document.getElementById('pagTotal').textContent = total_items;
+
+    const prevBtn = document.getElementById('prevPageBtn');
+    const nextBtn = document.getElementById('nextPageBtn');
+
+    if (prevBtn) prevBtn.disabled = page <= 1;
+    if (nextBtn) nextBtn.disabled = page >= total_pages;
+
+    const numbersContainer = document.getElementById('pageNumbersContainer');
+    if (numbersContainer) {
+        let pagesHtml = '';
+        for (let i = 1; i <= total_pages; i++) {
+            if (i === 1 || i === total_pages || (i >= page - 1 && i <= page + 1)) {
+                pagesHtml += `
+                    <button class="btn-page-num ${i === page ? 'active' : ''}" onclick="goToPage(${i})">
+                        ${i}
+                    </button>
+                `;
+            }
+        }
+        numbersContainer.innerHTML = pagesHtml;
+    }
+}
+
+function goToPage(page) {
+    state.pagination.page = page;
+    fetchExpenses();
+}
+
+/* ==========================================================================
+   Expense Logging & Mutations
+   ========================================================================== */
+async function handleQuickLogSubmit(e) {
+    e.preventDefault();
+    const amount = document.getElementById('quickAmount').value;
+    const description = document.getElementById('quickDescription').value;
+    const category = document.getElementById('quickCategory').value;
+    const payment_method = document.getElementById('quickPaymentMethod').value;
+    const date = document.getElementById('quickDate').value;
+
+    if (!category) {
+        showToast('Please select a category', 'error');
+        return;
+    }
+
+    try {
+        const res = await fetch('/api/expenses', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ amount, description, category, payment_method, date })
+        });
+        const data = await res.json();
+        if (data.success) {
+            showToast('Expense logged and saved to Excel!', 'success');
+            document.getElementById('quickAmount').value = '';
+            document.getElementById('quickDescription').value = '';
+            
+            await Promise.all([fetchSummary(), fetchExpenses()]);
+        } else {
+            showToast(data.error || 'Failed to save expense', 'error');
+        }
+    } catch (err) {
+        showToast('Network error: ' + err.message, 'error');
+    }
+}
+
+function openExpenseModal(expenseId = null) {
+    const modal = document.getElementById('expenseModal');
+    const title = document.getElementById('expenseModalTitle');
+    const submitText = document.getElementById('saveExpenseBtnText');
+    const idInput = document.getElementById('modalExpenseId');
+    const amountInput = document.getElementById('modalAmount');
+    const descInput = document.getElementById('modalDescription');
+    const catSelect = document.getElementById('modalCategory');
+    const paySelect = document.getElementById('modalPaymentMethod');
+    const dateInput = document.getElementById('modalDate');
+
+    if (expenseId) {
+        const item = state.expenses.find(e => e.id === expenseId);
+        if (!item) return;
+
+        state.isEditing = true;
+        title.textContent = 'Edit Expense Record';
+        submitText.textContent = 'Update Excel Record';
+        idInput.value = item.id;
+        amountInput.value = item.amount;
+        descInput.value = item.description;
+        catSelect.value = item.category;
+        paySelect.value = item.payment_method;
+        dateInput.value = item.date;
+    } else {
+        state.isEditing = false;
+        title.textContent = 'Log New Expense';
+        submitText.textContent = 'Save to Excel';
+        idInput.value = '';
+        amountInput.value = '';
+        descInput.value = '';
+        catSelect.selectedIndex = 0;
+        paySelect.value = 'Credit Card';
+        dateInput.value = new Date().toISOString().split('T')[0];
+    }
+
+    modal?.classList.add('active');
+    setTimeout(() => amountInput?.focus(), 100);
+}
+
+function closeExpenseModal() {
+    document.getElementById('expenseModal')?.classList.remove('active');
+}
+
+async function handleExpenseModalSubmit(e) {
+    e.preventDefault();
+    const id = document.getElementById('modalExpenseId').value;
+    const amount = document.getElementById('modalAmount').value;
+    const description = document.getElementById('modalDescription').value;
+    const category = document.getElementById('modalCategory').value;
+    const payment_method = document.getElementById('modalPaymentMethod').value;
+    const date = document.getElementById('modalDate').value;
+
+    const payload = { amount, description, category, payment_method, date };
+    const url = state.isEditing ? `/api/expenses/${id}` : '/api/expenses';
+    const method = state.isEditing ? 'PUT' : 'POST';
+
+    try {
+        const res = await fetch(url, {
+            method: method,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (data.success) {
+            showToast(state.isEditing ? 'Expense updated in Excel!' : 'Expense saved to Excel!', 'success');
+            closeExpenseModal();
+            await Promise.all([fetchSummary(), fetchExpenses()]);
+        } else {
+            showToast(data.error || 'Failed to save', 'error');
+        }
+    } catch (err) {
+        showToast('Error: ' + err.message, 'error');
+    }
+}
+
+async function handleDeleteExpense(id) {
+    if (!confirm(`Are you sure you want to delete expense record #${id}? This will remove it from expenses_data.xlsx.`)) {
+        return;
+    }
+
+    try {
+        const res = await fetch(`/api/expenses/${id}`, { method: 'DELETE' });
+        const data = await res.json();
+        if (data.success) {
+            showToast('Expense removed from Excel!', 'success');
+            await Promise.all([fetchSummary(), fetchExpenses()]);
+        } else {
+            showToast(data.error || 'Failed to delete', 'error');
+        }
+    } catch (err) {
+        showToast('Error: ' + err.message, 'error');
+    }
+}
+
+async function handleClearAllExpenses() {
+    const count = state.pagination.total_items;
+    if (count === 0) {
+        showToast('No logged expenses to reset.', 'error');
+        return;
+    }
+
+    if (!confirm(`⚠️ Are you sure you want to delete ALL ${count} expense records from expenses_data.xlsx?\n\nThis will reset the tracker to empty ($0.00). This action cannot be undone.`)) {
+        return;
+    }
+
+    try {
+        const res = await fetch('/api/expenses/clear-all', { method: 'POST' });
+        const data = await res.json();
+        if (data.success) {
+            showToast('🗑️ All expenses have been reset & cleared from Excel!', 'success');
+            
+            // Reset pagination and filters
+            state.pagination.page = 1;
+            state.filters.search = '';
+            state.filters.category = 'all';
+            state.filters.payment_method = 'all';
+            
+            const catFilter = document.getElementById('tableCategoryFilter');
+            const payFilter = document.getElementById('tablePaymentFilter');
+            const searchInput = document.getElementById('tableSearchInput');
+            if (catFilter) catFilter.value = 'all';
+            if (payFilter) payFilter.value = 'all';
+            if (searchInput) searchInput.value = '';
+
+            await Promise.all([fetchSummary(), fetchExpenses()]);
+        } else {
+            showToast(data.error || 'Failed to clear expenses', 'error');
+        }
+    } catch (err) {
+        showToast('Error: ' + err.message, 'error');
+    }
+}
+
+/* ==========================================================================
+   Budget Manager Modal
+   ========================================================================== */
+async function openBudgetsModal() {
+    try {
+        const res = await fetch('/api/budgets');
+        const data = await res.json();
+        if (data.success) {
+            state.budgets = data.data;
+            renderBudgetsInputs(data.data);
+            document.getElementById('budgetsModal')?.classList.add('active');
+        }
+    } catch (err) {
+        showToast('Failed to load budgets: ' + err.message, 'error');
+    }
+}
+
+function closeBudgetsModal() {
+    document.getElementById('budgetsModal')?.classList.remove('active');
+}
+
+function renderBudgetsInputs(budgets) {
+    const grid = document.getElementById('budgetsInputsGrid');
+    if (!grid) return;
+
+    let total = 0;
+    grid.innerHTML = state.categories.map(c => {
+        const val = budgets[c.name] !== undefined ? budgets[c.name] : 0;
+        total += parseFloat(val) || 0;
+        return `
+            <div class="budget-input-item">
+                <div class="budget-item-header">
+                    <span class="category-pill" style="background-color: ${c.color}20; color: ${c.color}; border: 1px solid ${c.color}40;">
+                        <i class="fa-solid fa-${c.icon}"></i>
+                    </span>
+                    <span>${c.name}</span>
+                </div>
+                <div class="budget-input-wrap">
+                    <span>$</span>
+                    <input type="number" step="10" min="0" class="budget-cat-val" data-category="${c.name}" value="${val}" oninput="recalcTotalBudget()">
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    const totalEl = document.getElementById('modalTotalBudgetValue');
+    if (totalEl) totalEl.textContent = formatCurrency(total);
+}
+
+function recalcTotalBudget() {
+    let sum = 0;
+    document.querySelectorAll('.budget-cat-val').forEach(input => {
+        sum += parseFloat(input.value) || 0;
+    });
+    const totalEl = document.getElementById('modalTotalBudgetValue');
+    if (totalEl) totalEl.textContent = formatCurrency(sum);
+}
+
+async function handleBudgetsSubmit(e) {
+    e.preventDefault();
+    const newBudgets = {};
+    document.querySelectorAll('.budget-cat-val').forEach(input => {
+        const cat = input.dataset.category;
+        newBudgets[cat] = parseFloat(input.value) || 0;
+    });
+
+    try {
+        const res = await fetch('/api/budgets', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ budgets: newBudgets })
+        });
+        const data = await res.json();
+        if (data.success) {
+            showToast('Monthly budgets updated in Excel!', 'success');
+            closeBudgetsModal();
+            await fetchSummary();
+        } else {
+            showToast(data.error || 'Failed to save budgets', 'error');
+        }
+    } catch (err) {
+        showToast('Error: ' + err.message, 'error');
+    }
+}
+
+/* ==========================================================================
+   Toast Notifications
+   ========================================================================== */
+function showToast(message, type = 'success') {
+    const container = document.getElementById('toastContainer');
+    if (!container) return;
+
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${type}`;
+    const icon = type === 'success' ? 'fa-solid fa-circle-check' : 'fa-solid fa-circle-exclamation';
+    
+    toast.innerHTML = `
+        <i class="${icon}"></i>
+        <span>${escapeHtml(message)}</span>
+    `;
+
+    container.appendChild(toast);
+
+    setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateX(100%)';
+        toast.style.transition = 'all 0.3s ease';
+        setTimeout(() => toast.remove(), 300);
+    }, 4000);
+}
+
+/* ==========================================================================
+   Helper Utilities
+   ========================================================================== */
+function escapeHtml(str) {
+    if (!str) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}

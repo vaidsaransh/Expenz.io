@@ -1,0 +1,465 @@
+import os
+import threading
+from datetime import datetime, timedelta
+import openpyxl
+from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+from openpyxl.utils import get_column_letter
+
+EXCEL_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "expenses_data.xlsx")
+_file_lock = threading.RLock()
+
+DEFAULT_CATEGORIES = [
+    {"name": "Food & Dining", "color": "#F59E0B", "icon": "utensils"},
+    {"name": "Housing & Rent", "color": "#6366F1", "icon": "home"},
+    {"name": "Utilities & Bills", "color": "#06B6D4", "icon": "bolt"},
+    {"name": "Transportation", "color": "#3B82F6", "icon": "car"},
+    {"name": "Shopping & Retail", "color": "#EC4899", "icon": "shopping-bag"},
+    {"name": "Entertainment & Leisure", "color": "#8B5CF6", "icon": "film"},
+    {"name": "Healthcare & Wellness", "color": "#10B981", "icon": "heart-pulse"},
+    {"name": "Education & Learning", "color": "#14B8A6", "icon": "graduation-cap"},
+    {"name": "Personal Care", "color": "#F43F5E", "icon": "sparkles"},
+    {"name": "Investments & Savings", "color": "#84CC16", "icon": "piggy-bank"},
+    {"name": "Miscellaneous", "color": "#64748B", "icon": "tags"},
+]
+
+DEFAULT_BUDGETS = {
+    "Food & Dining": 600.0,
+    "Housing & Rent": 1500.0,
+    "Utilities & Bills": 250.0,
+    "Transportation": 300.0,
+    "Shopping & Retail": 400.0,
+    "Entertainment & Leisure": 250.0,
+    "Healthcare & Wellness": 200.0,
+    "Education & Learning": 150.0,
+    "Personal Care": 150.0,
+    "Investments & Savings": 500.0,
+    "Miscellaneous": 100.0,
+}
+
+def style_header(sheet, headers, fill_color="1E293B", text_color="FFFFFF"):
+    font = Font(name="Calibri", size=11, bold=True, color=text_color)
+    fill = PatternFill(start_color=fill_color, end_color=fill_color, fill_type="solid")
+    align = Alignment(horizontal="center", vertical="center")
+    thin_border = Border(
+        left=Side(style='thin', color='CBD5E1'),
+        right=Side(style='thin', color='CBD5E1'),
+        top=Side(style='thin', color='CBD5E1'),
+        bottom=Side(style='thin', color='CBD5E1')
+    )
+    sheet.append(headers)
+    for col_num, _ in enumerate(headers, 1):
+        cell = sheet.cell(row=1, column=col_num)
+        cell.font = font
+        cell.fill = fill
+        cell.alignment = align
+        cell.border = thin_border
+    sheet.row_dimensions[1].height = 26
+
+def auto_fit_columns(sheet):
+    for col in sheet.columns:
+        max_len = 0
+        col_letter = get_column_letter(col[0].column)
+        for cell in col:
+            val_str = str(cell.value or '')
+            if len(val_str) > max_len:
+                max_len = len(val_str)
+        sheet.column_dimensions[col_letter].width = max(max_len + 4, 12)
+
+def init_excel():
+    with _file_lock:
+        if os.path.exists(EXCEL_FILE):
+            return
+
+        wb = openpyxl.Workbook()
+        
+        # 1. Expenses Sheet
+        ws_expenses = wb.active
+        ws_expenses.title = "Expenses"
+        exp_headers = ["ID", "Date", "Amount ($)", "Category", "Payment Method", "Description", "Created At"]
+        style_header(ws_expenses, exp_headers, fill_color="0F172A")
+
+        # Seed initial realistic expenses
+        today = datetime.now()
+        seed_data = [
+            (1, (today - timedelta(days=1)).strftime("%Y-%m-%d"), 64.50, "Food & Dining", "Credit Card", "Grocery run at Whole Foods", (today - timedelta(days=1)).strftime("%Y-%m-%d %H:%M")),
+            (2, (today - timedelta(days=2)).strftime("%Y-%m-%d"), 14.99, "Entertainment & Leisure", "Credit Card", "Netflix Monthly Subscription", (today - timedelta(days=2)).strftime("%Y-%m-%d %H:%M")),
+            (3, (today - timedelta(days=3)).strftime("%Y-%m-%d"), 45.00, "Transportation", "Debit Card", "Gasoline refuel", (today - timedelta(days=3)).strftime("%Y-%m-%d %H:%M")),
+            (4, (today - timedelta(days=4)).strftime("%Y-%m-%d"), 120.00, "Utilities & Bills", "Bank Transfer", "High-speed Fiber Internet & Power", (today - timedelta(days=4)).strftime("%Y-%m-%d %H:%M")),
+            (5, (today - timedelta(days=6)).strftime("%Y-%m-%d"), 89.20, "Shopping & Retail", "Credit Card", "Ergonomic Desk Accessories", (today - timedelta(days=6)).strftime("%Y-%m-%d %H:%M")),
+            (6, (today - timedelta(days=8)).strftime("%Y-%m-%d"), 32.50, "Food & Dining", "Cash", "Lunch with colleagues", (today - timedelta(days=8)).strftime("%Y-%m-%d %H:%M")),
+            (7, (today - timedelta(days=11)).strftime("%Y-%m-%d"), 40.00, "Healthcare & Wellness", "Credit Card", "Pharmacy vitamins & supplements", (today - timedelta(days=11)).strftime("%Y-%m-%d %H:%M")),
+            (8, (today - timedelta(days=14)).strftime("%Y-%m-%d"), 1450.00, "Housing & Rent", "Bank Transfer", "Monthly Apartment Rent", (today - timedelta(days=14)).strftime("%Y-%m-%d %H:%M")),
+            (9, (today - timedelta(days=18)).strftime("%Y-%m-%d"), 50.00, "Education & Learning", "Credit Card", "Online AI Course & Book", (today - timedelta(days=18)).strftime("%Y-%m-%d %H:%M")),
+            (10, (today - timedelta(days=22)).strftime("%Y-%m-%d"), 78.40, "Food & Dining", "Credit Card", "Weekend Dinner & Drinks", (today - timedelta(days=22)).strftime("%Y-%m-%d %H:%M")),
+        ]
+        
+        for row in seed_data:
+            ws_expenses.append(list(row))
+        auto_fit_columns(ws_expenses)
+
+        # 2. Budgets Sheet
+        ws_budgets = wb.create_sheet(title="Budgets")
+        bud_headers = ["Category", "Monthly Budget ($)", "Updated At"]
+        style_header(ws_budgets, bud_headers, fill_color="1E293B")
+        for cat, limit in DEFAULT_BUDGETS.items():
+            ws_budgets.append([cat, float(limit), today.strftime("%Y-%m-%d %H:%M")])
+        auto_fit_columns(ws_budgets)
+
+        # 3. Categories Sheet
+        ws_categories = wb.create_sheet(title="Categories")
+        cat_headers = ["Name", "Color", "Icon"]
+        style_header(ws_categories, cat_headers, fill_color="334155")
+        for c in DEFAULT_CATEGORIES:
+            ws_categories.append([c["name"], c["color"], c["icon"]])
+        auto_fit_columns(ws_categories)
+
+        wb.save(EXCEL_FILE)
+
+def get_workbook():
+    init_excel()
+    return openpyxl.load_workbook(EXCEL_FILE)
+
+def get_categories():
+    with _file_lock:
+        wb = get_workbook()
+        if "Categories" not in wb.sheetnames:
+            return DEFAULT_CATEGORIES
+        ws = wb["Categories"]
+        categories = []
+        for row in ws.iter_rows(min_row=2, values_only=True):
+            if row and row[0]:
+                categories.append({
+                    "name": str(row[0]).strip(),
+                    "color": str(row[1]).strip() if len(row) > 1 and row[1] else "#64748B",
+                    "icon": str(row[2]).strip() if len(row) > 2 and row[2] else "tags"
+                })
+        return categories if categories else DEFAULT_CATEGORIES
+
+def get_budgets():
+    with _file_lock:
+        wb = get_workbook()
+        if "Budgets" not in wb.sheetnames:
+            return DEFAULT_BUDGETS
+        ws = wb["Budgets"]
+        budgets = {}
+        for row in ws.iter_rows(min_row=2, values_only=True):
+            if row and row[0]:
+                cat = str(row[0]).strip()
+                try:
+                    limit = float(row[1]) if len(row) > 1 and row[1] is not None else 0.0
+                except (ValueError, TypeError):
+                    limit = 0.0
+                budgets[cat] = limit
+        return budgets
+
+def save_budgets(new_budgets):
+    with _file_lock:
+        wb = get_workbook()
+        if "Budgets" in wb.sheetnames:
+            del wb["Budgets"]
+        ws = wb.create_sheet(title="Budgets")
+        style_header(ws, ["Category", "Monthly Budget ($)", "Updated At"], fill_color="1E293B")
+        now_str = datetime.now().strftime("%Y-%m-%d %H:%M")
+        for cat, limit in new_budgets.items():
+            ws.append([cat, float(limit), now_str])
+        auto_fit_columns(ws)
+        wb.save(EXCEL_FILE)
+        return True
+
+def get_expenses(start_date=None, end_date=None, category=None, search=None, payment_method=None):
+    with _file_lock:
+        wb = get_workbook()
+        ws = wb["Expenses"]
+        expenses = []
+        for row in ws.iter_rows(min_row=2, values_only=True):
+            if not row or row[0] is None:
+                continue
+            
+            exp_id = int(row[0]) if isinstance(row[0], (int, float)) else str(row[0])
+            date_val = str(row[1]) if row[1] is not None else ""
+            if isinstance(row[1], datetime):
+                date_val = row[1].strftime("%Y-%m-%d")
+            
+            try:
+                amount_val = float(row[2]) if row[2] is not None else 0.0
+            except (ValueError, TypeError):
+                amount_val = 0.0
+                
+            cat_val = str(row[3]) if row[3] is not None else "Miscellaneous"
+            pay_val = str(row[4]) if len(row) > 4 and row[4] is not None else "Other"
+            desc_val = str(row[5]) if len(row) > 5 and row[5] is not None else ""
+            created_val = str(row[6]) if len(row) > 6 and row[6] is not None else ""
+            
+            # Filtering
+            if category and category.lower() != 'all' and cat_val.lower() != category.lower():
+                continue
+            if payment_method and payment_method.lower() != 'all' and pay_val.lower() != payment_method.lower():
+                continue
+            if start_date and date_val < start_date:
+                continue
+            if end_date and date_val > end_date:
+                continue
+            if search:
+                search_lower = search.lower()
+                if search_lower not in desc_val.lower() and search_lower not in cat_val.lower() and search_lower not in pay_val.lower():
+                    continue
+
+            expenses.append({
+                "id": exp_id,
+                "date": date_val,
+                "amount": round(amount_val, 2),
+                "category": cat_val,
+                "payment_method": pay_val,
+                "description": desc_val,
+                "created_at": created_val
+            })
+            
+        # Sort by date desc, id desc
+        expenses.sort(key=lambda x: (x["date"], x["id"]), reverse=True)
+        return expenses
+
+def add_expense(date, amount, category, payment_method, description):
+    with _file_lock:
+        wb = get_workbook()
+        ws = wb["Expenses"]
+        
+        # Determine next ID
+        max_id = 0
+        for row in ws.iter_rows(min_row=2, max_col=1, values_only=True):
+            if row and row[0] is not None:
+                try:
+                    val = int(row[0])
+                    if val > max_id:
+                        max_id = val
+                except (ValueError, TypeError):
+                    pass
+        new_id = max_id + 1
+        now_str = datetime.now().strftime("%Y-%m-%d %H:%M")
+        
+        ws.append([new_id, str(date), float(amount), str(category), str(payment_method), str(description), now_str])
+        auto_fit_columns(ws)
+        wb.save(EXCEL_FILE)
+        return {
+            "id": new_id,
+            "date": str(date),
+            "amount": float(amount),
+            "category": str(category),
+            "payment_method": str(payment_method),
+            "description": str(description),
+            "created_at": now_str
+        }
+
+def bulk_add_expenses(items):
+    with _file_lock:
+        wb = get_workbook()
+        ws = wb["Expenses"]
+        
+        # Determine starting ID
+        max_id = 0
+        for row in ws.iter_rows(min_row=2, max_col=1, values_only=True):
+            if row and row[0] is not None:
+                try:
+                    val = int(row[0])
+                    if val > max_id:
+                        max_id = val
+                except (ValueError, TypeError):
+                    pass
+                    
+        now_str = datetime.now().strftime("%Y-%m-%d %H:%M")
+        added_records = []
+        
+        for item in items:
+            max_id += 1
+            date_val = str(item.get("date", datetime.now().strftime("%Y-%m-%d")))
+            amt_val = float(item.get("amount", 0.0))
+            cat_val = str(item.get("category", "Miscellaneous"))
+            pay_val = str(item.get("payment_method", "Amex Card"))
+            desc_val = str(item.get("description", "Purchase"))
+            
+            ws.append([max_id, date_val, amt_val, cat_val, pay_val, desc_val, now_str])
+            added_records.append({
+                "id": max_id,
+                "date": date_val,
+                "amount": amt_val,
+                "category": cat_val,
+                "payment_method": pay_val,
+                "description": desc_val,
+                "created_at": now_str
+            })
+            
+        auto_fit_columns(ws)
+        wb.save(EXCEL_FILE)
+        return added_records
+
+def update_expense(expense_id, date, amount, category, payment_method, description):
+    with _file_lock:
+        wb = get_workbook()
+        ws = wb["Expenses"]
+        found = False
+        target_row_idx = None
+        
+        for idx, row in enumerate(ws.iter_rows(min_row=2, values_only=False), start=2):
+            cell_val = row[0].value
+            if cell_val is not None and str(cell_val) == str(expense_id):
+                target_row_idx = idx
+                row[1].value = str(date)
+                row[2].value = float(amount)
+                row[3].value = str(category)
+                if len(row) > 4: row[4].value = str(payment_method)
+                if len(row) > 5: row[5].value = str(description)
+                found = True
+                break
+                
+        if found:
+            auto_fit_columns(ws)
+            wb.save(EXCEL_FILE)
+            return True
+        return False
+
+def delete_expense(expense_id):
+    with _file_lock:
+        wb = get_workbook()
+        ws = wb["Expenses"]
+        target_row_idx = None
+        for idx, row in enumerate(ws.iter_rows(min_row=2, max_col=1, values_only=True), start=2):
+            if row and row[0] is not None and str(row[0]) == str(expense_id):
+                target_row_idx = idx
+                break
+        if target_row_idx is not None:
+            ws.delete_rows(target_row_idx, 1)
+            wb.save(EXCEL_FILE)
+            return True
+        return False
+
+def clear_all_expenses():
+    with _file_lock:
+        wb = get_workbook()
+        if "Expenses" in wb.sheetnames:
+            del wb["Expenses"]
+        ws = wb.create_sheet(title="Expenses", index=0)
+        exp_headers = ["ID", "Date", "Amount ($)", "Category", "Payment Method", "Description", "Created At"]
+        style_header(ws, exp_headers, fill_color="0F172A")
+        auto_fit_columns(ws)
+        wb.save(EXCEL_FILE)
+        return True
+
+def get_summary_stats():
+    expenses = get_expenses()
+    budgets = get_budgets()
+    categories_list = get_categories()
+    cat_meta = {c["name"]: c for c in categories_list}
+    
+    now = datetime.now()
+    current_month_prefix = now.strftime("%Y-%m")
+    
+    # Calculate previous month prefix
+    first_day_curr = now.replace(day=1)
+    last_day_prev = first_day_curr - timedelta(days=1)
+    prev_month_prefix = last_day_prev.strftime("%Y-%m")
+    
+    total_all_time = sum(e["amount"] for e in expenses)
+    current_month_expenses = [e for e in expenses if e["date"].startswith(current_month_prefix)]
+    prev_month_expenses = [e for e in expenses if e["date"].startswith(prev_month_prefix)]
+    
+    current_month_spend = sum(e["amount"] for e in current_month_expenses)
+    prev_month_spend = sum(e["amount"] for e in prev_month_expenses)
+    
+    # Total monthly budget
+    total_monthly_budget = sum(budgets.values())
+    remaining_budget = max(0.0, total_monthly_budget - current_month_spend)
+    budget_usage_pct = round((current_month_spend / total_monthly_budget * 100), 1) if total_monthly_budget > 0 else 0
+    
+    # Daily average this month
+    days_passed = max(1, now.day)
+    daily_avg_spend = round(current_month_spend / days_passed, 2)
+    
+    # Category Breakdown for Current Month & All Time
+    category_totals = {}
+    for e in current_month_expenses:
+        cat = e["category"]
+        category_totals[cat] = category_totals.get(cat, 0.0) + e["amount"]
+        
+    category_breakdown = []
+    for cat_name, amt in category_totals.items():
+        meta = cat_meta.get(cat_name, {"color": "#64748B", "icon": "tags"})
+        budget_limit = budgets.get(cat_name, 0.0)
+        pct_of_total = round((amt / current_month_spend * 100), 1) if current_month_spend > 0 else 0
+        pct_of_budget = round((amt / budget_limit * 100), 1) if budget_limit > 0 else 0
+        category_breakdown.append({
+            "category": cat_name,
+            "amount": round(amt, 2),
+            "percentage": pct_of_total,
+            "budget": budget_limit,
+            "budget_usage_pct": pct_of_budget,
+            "color": meta["color"],
+            "icon": meta["icon"]
+        })
+    category_breakdown.sort(key=lambda x: x["amount"], reverse=True)
+    
+    # Budget vs Actual comparison across all configured categories
+    budget_comparison = []
+    for cat_name, limit in budgets.items():
+        actual = category_totals.get(cat_name, 0.0)
+        meta = cat_meta.get(cat_name, {"color": "#64748B", "icon": "tags"})
+        usage = round((actual / limit * 100), 1) if limit > 0 else 0
+        budget_comparison.append({
+            "category": cat_name,
+            "budget": round(limit, 2),
+            "actual": round(actual, 2),
+            "remaining": round(max(0, limit - actual), 2),
+            "usage_pct": usage,
+            "is_over": actual > limit,
+            "color": meta["color"],
+            "icon": meta["icon"]
+        })
+    budget_comparison.sort(key=lambda x: x["actual"], reverse=True)
+
+    # 30-day timeline trend
+    timeline_days = {}
+    for i in range(29, -1, -1):
+        day_str = (now - timedelta(days=i)).strftime("%Y-%m-%d")
+        timeline_days[day_str] = 0.0
+    for e in expenses:
+        if e["date"] in timeline_days:
+            timeline_days[e["date"]] += e["amount"]
+            
+    timeline_labels = [d[5:] for d in timeline_days.keys()]  # MM-DD
+    timeline_values = [round(val, 2) for val in timeline_days.values()]
+    
+    # Payment Method breakdown
+    payment_method_totals = {}
+    for e in current_month_expenses:
+        p = e.get("payment_method") or "Other"
+        payment_method_totals[p] = payment_method_totals.get(p, 0.0) + e["amount"]
+        
+    top_category = category_breakdown[0]["category"] if category_breakdown else "None"
+    top_category_amount = category_breakdown[0]["amount"] if category_breakdown else 0.0
+    
+    # Month-over-month growth percentage
+    if prev_month_spend > 0:
+        mom_growth_pct = round(((current_month_spend - prev_month_spend) / prev_month_spend) * 100, 1)
+    else:
+        mom_growth_pct = 0.0
+
+    return {
+        "current_month_spend": round(current_month_spend, 2),
+        "prev_month_spend": round(prev_month_spend, 2),
+        "mom_growth_pct": mom_growth_pct,
+        "total_monthly_budget": round(total_monthly_budget, 2),
+        "remaining_budget": round(remaining_budget, 2),
+        "budget_usage_pct": budget_usage_pct,
+        "daily_avg_spend": daily_avg_spend,
+        "total_all_time": round(total_all_time, 2),
+        "total_transactions_count": len(expenses),
+        "current_month_count": len(current_month_expenses),
+        "top_category": top_category,
+        "top_category_amount": round(top_category_amount, 2),
+        "category_breakdown": category_breakdown,
+        "budget_comparison": budget_comparison,
+        "timeline": {
+            "labels": timeline_labels,
+            "values": timeline_values,
+            "raw_dates": list(timeline_days.keys())
+        },
+        "payment_methods": payment_method_totals
+    }

@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Expenz • Modern Expense & Budget Tracker</title>
+    <meta name="description" content="A sleek, interactive expense and budget tracker backed seamlessly by an Excel spreadsheet.">
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <!-- App CSS -->
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <!-- Background Ambient Glows -->
+    <div class="ambient-glow glow-1"></div>
+    <div class="ambient-glow glow-2"></div>
+    <div class="ambient-glow glow-3"></div>
+
+    <div class="app-container">
+        <!-- Top Navbar -->
+        <header class="navbar glass-card">
+            <div class="nav-left">
+                <div class="brand-logo">
+                    <div class="logo-icon">
+                        <i class="fa-solid fa-wallet"></i>
+                    </div>
+                    <div class="brand-text">
+                        <span class="brand-name">Expenz<span class="brand-dot">.io</span></span>
+                        <span class="brand-sub">Excel-Synced Budget Tracker</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="nav-center">
+                <div class="excel-status-pill" id="excelStatusPill" title="All transactions sync directly to expenses_data.xlsx">
+                    <span class="pulse-dot"></span>
+                    <i class="fa-solid fa-file-excel text-emerald"></i>
+                    <span class="status-text">Synced with <strong>expenses_data.xlsx</strong></span>
+                </div>
+            </div>
+
+            <div class="nav-right">
+                <button class="btn btn-ai-sparkle btn-icon" id="openStatementModalBtn" title="Upload Bank / Amex Statements for AI Parsing">
+                    <i class="fa-solid fa-wand-magic-sparkles"></i>
+                    <span>AI Import Statement</span>
+                </button>
+                <a href="/download-excel" class="btn btn-secondary btn-icon" id="downloadExcelBtn" title="Download Excel Spreadsheet">
+                    <i class="fa-solid fa-download"></i>
+                    <span>Export Excel</span>
+                </a>
+                <button class="btn btn-secondary btn-icon" id="openBudgetsModalBtn">
+                    <i class="fa-solid fa-sliders"></i>
+                    <span>Budgets</span>
+                </button>
+                <button class="btn btn-primary btn-icon glow-button" id="openAddModalBtn">
+                    <i class="fa-solid fa-plus"></i>
+                    <span>Log Expense <kbd class="kbd-shortcut">N</kbd></span>
+                </button>
+                <button class="btn-theme-toggle" id="themeToggleBtn" aria-label="Toggle Dark/Light Mode">
+                    <i class="fa-solid fa-moon"></i>
+                </button>
+            </div>
+        </header>
+
+        <!-- Quick Log Strip Bar -->
+        <section class="quick-log-strip glass-card" id="quickLogSection">
+            <form id="quickLogForm" class="quick-log-form">
+                <div class="quick-form-badge">
+                    <i class="fa-solid fa-bolt-lightning text-accent"></i>
+                    <span>Quick Log</span>
+                </div>
+                <div class="quick-input-group">
+                    <span class="input-icon"><i class="fa-solid fa-dollar-sign"></i></span>
+                    <input type="number" step="0.01" min="0.01" id="quickAmount" placeholder="Amount (e.g. 24.50)" required>
+                </div>
+                <div class="quick-input-group">
+                    <span class="input-icon"><i class="fa-solid fa-pen-nib"></i></span>
+                    <input type="text" id="quickDescription" placeholder="Description / Merchant..." required>
+                </div>
+                <div class="quick-select-group">
+                    <select id="quickCategory" required>
+                        <option value="" disabled selected>Category</option>
+                    </select>
+                </div>
+                <div class="quick-select-group">
+                    <select id="quickPaymentMethod">
+                        <option value="Credit Card">Credit Card</option>
+                        <option value="Debit Card">Debit Card</option>
+                        <option value="Cash">Cash</option>
+                        <option value="Bank Transfer">Bank Transfer</option>
+                        <option value="UPI / Online">UPI / Online</option>
+                    </select>
+                </div>
+                <div class="quick-input-group date-group">
+                    <input type="date" id="quickDate" required>
+                </div>
+                <button type="submit" class="btn btn-primary quick-submit-btn">
+                    <i class="fa-solid fa-plus"></i>
+                    <span>Add</span>
+                </button>
+            </form>
+        </section>
+
+        <!-- Main KPI Summary Metric Cards -->
+        <section class="metrics-grid">
+            <!-- Metric 1: Monthly Spent -->
+            <div class="metric-card glass-card">
+                <div class="metric-header">
+                    <span class="metric-title">Spent This Month</span>
+                    <div class="metric-icon-wrap icon-purple">
+                        <i class="fa-solid fa-receipt"></i>
+                    </div>
+                </div>
+                <div class="metric-body">
+                    <h2 class="metric-value" id="kpiMonthSpend">$0.00</h2>
+                    <div class="metric-footer">
+                        <span class="badge" id="kpiGrowthBadge">
+                            <i class="fa-solid fa-arrow-trend-up"></i> <span id="kpiGrowthText">0% vs last mo</span>
+                        </span>
+                        <span class="metric-subtext" id="kpiTxnCount">0 transactions</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Metric 2: Monthly Budget -->
+            <div class="metric-card glass-card">
+                <div class="metric-header">
+                    <span class="metric-title">Monthly Budget</span>
+                    <div class="metric-icon-wrap icon-blue">
+                        <i class="fa-solid fa-bullseye"></i>
+                    </div>
+                </div>
+                <div class="metric-body">
+                    <h2 class="metric-value" id="kpiTotalBudget">$0.00</h2>
+                    <div class="progress-container">
+                        <div class="progress-bar-wrap">
+                            <div class="progress-bar-fill" id="kpiBudgetProgressBar" style="width: 0%;"></div>
+                        </div>
+                        <div class="progress-label">
+                            <span id="kpiBudgetUsagePct">0% spent</span>
+                            <span id="kpiBudgetCapText">of monthly limit</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Metric 3: Remaining Budget -->
+            <div class="metric-card glass-card">
+                <div class="metric-header">
+                    <span class="metric-title">Remaining Balance</span>
+                    <div class="metric-icon-wrap icon-emerald">
+                        <i class="fa-solid fa-piggy-bank"></i>
+                    </div>
+                </div>
+                <div class="metric-body">
+                    <h2 class="metric-value text-emerald" id="kpiRemainingBudget">$0.00</h2>
+                    <div class="metric-footer">
+                        <span class="badge badge-success" id="kpiBudgetStatusBadge">
+                            <i class="fa-solid fa-shield-check"></i> On Track
+                        </span>
+                        <span class="metric-subtext">Safe to spend</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Metric 4: Daily Average -->
+            <div class="metric-card glass-card">
+                <div class="metric-header">
+                    <span class="metric-title">Daily Average</span>
+                    <div class="metric-icon-wrap icon-cyan">
+                        <i class="fa-solid fa-calendar-day"></i>
+                    </div>
+                </div>
+                <div class="metric-body">
+                    <h2 class="metric-value" id="kpiDailyAvg">$0.00</h2>
+                    <div class="metric-footer">
+                        <span class="metric-subtext" id="kpiProjectedTotal">Projected: $0.00 by month-end</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Metric 5: Top Category -->
+            <div class="metric-card glass-card">
+                <div class="metric-header">
+                    <span class="metric-title">Top Expense Category</span>
+                    <div class="metric-icon-wrap icon-amber">
+                        <i class="fa-solid fa-fire"></i>
+                    </div>
+                </div>
+                <div class="metric-body">
+                    <h2 class="metric-value font-sm" id="kpiTopCategory">None</h2>
+                    <div class="metric-footer">
+                        <span class="badge badge-accent" id="kpiTopCategoryAmount">$0.00</span>
+                        <span class="metric-subtext">highest spend</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Visual Analytics Grid -->
+        <section class="analytics-grid">
+            <!-- Chart 1: 30-Day Spending Timeline -->
+            <div class="chart-card glass-card span-2">
+                <div class="chart-header">
+                    <div>
+                        <h3 class="chart-title"><i class="fa-solid fa-chart-area text-accent"></i> 30-Day Spending Trend</h3>
+                        <p class="chart-subtitle">Daily expenditure cadence across the last 30 days</p>
+                    </div>
+                    <div class="chart-badge">
+                        <span>Real-time</span>
+                    </div>
+                </div>
+                <div class="chart-wrapper">
+                    <canvas id="timelineChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Chart 2: Category Breakdown Donut -->
+            <div class="chart-card glass-card">
+                <div class="chart-header">
+                    <div>
+                        <h3 class="chart-title"><i class="fa-solid fa-chart-pie text-secondary"></i> Category Distribution</h3>
+                        <p class="chart-subtitle">Monthly spend allocation</p>
+                    </div>
+                </div>
+                <div class="chart-wrapper donut-wrapper">
+                    <canvas id="categoryDonutChart"></canvas>
+                </div>
+                <div class="custom-category-legend" id="categoryLegendContainer">
+                    <!-- Populated dynamically via JS -->
+                </div>
+            </div>
+
+            <!-- Chart 3: Budget vs Actual Bar Chart -->
+            <div class="chart-card glass-card span-2">
+                <div class="chart-header">
+                    <div>
+                        <h3 class="chart-title"><i class="fa-solid fa-chart-column text-blue"></i> Budget vs. Actual Spend</h3>
+                        <p class="chart-subtitle">Category allowances vs current month actuals</p>
+                    </div>
+                </div>
+                <div class="chart-wrapper">
+                    <canvas id="budgetBarChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Chart 4: Payment Methods Distribution -->
+            <div class="chart-card glass-card">
+                <div class="chart-header">
+                    <div>
+                        <h3 class="chart-title"><i class="fa-solid fa-credit-card text-emerald"></i> Payment Methods</h3>
+                        <p class="chart-subtitle">Spend by payment type</p>
+                    </div>
+                </div>
+                <div class="chart-wrapper donut-wrapper">
+                    <canvas id="paymentChart"></canvas>
+                </div>
+            </div>
+        </section>
+
+        <!-- Interactive Transactions Section -->
+        <section class="transactions-section glass-card">
+            <div class="transactions-header">
+                <div class="section-title-wrap">
+                    <h3 class="section-title">
+                        <i class="fa-solid fa-list-check text-accent"></i>
+                        Expense Transactions Log
+                    </h3>
+                    <p class="section-subtitle">Browse, filter, edit and search all spreadsheet records</p>
+                </div>
+
+                <div class="table-actions">
+                    <div class="search-input-wrap">
+                        <i class="fa-solid fa-magnifying-glass"></i>
+                        <input type="text" id="tableSearchInput" placeholder="Search description, category, payment...">
+                        <button class="clear-search-btn" id="clearSearchBtn" style="display: none;">
+                            <i class="fa-solid fa-xmark"></i>
+                        </button>
+                    </div>
+
+                    <div class="filter-group">
+                        <select id="tableCategoryFilter" class="table-filter-select">
+                            <option value="all">All Categories</option>
+                        </select>
+
+                        <select id="tablePaymentFilter" class="table-filter-select">
+                            <option value="all">All Payment Methods</option>
+                            <option value="Credit Card">Credit Card</option>
+                            <option value="Debit Card">Debit Card</option>
+                            <option value="Cash">Cash</option>
+                            <option value="Bank Transfer">Bank Transfer</option>
+                            <option value="UPI / Online">UPI / Online</option>
+                        </select>
+
+                        <button class="btn btn-secondary btn-danger-hover btn-icon" id="clearAllExpensesBtn" title="Clear all expense transactions from Excel spreadsheet">
+                            <i class="fa-solid fa-trash-can"></i>
+                            <span>Reset All</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Table Container -->
+            <div class="table-responsive">
+                <table class="modern-table" id="expensesTable">
+                    <thead>
+                        <tr>
+                            <th class="th-id">#ID</th>
+                            <th class="th-date">Date</th>
+                            <th class="th-desc">Description / Note</th>
+                            <th class="th-cat">Category</th>
+                            <th class="th-pay">Payment Method</th>
+                            <th class="th-amount text-right">Amount</th>
+                            <th class="th-actions text-center">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="expensesTableBody">
+                        <tr>
+                            <td colspan="7" class="table-empty-state">
+                                <i class="fa-solid fa-spinner fa-spin"></i> Loading expenses from Excel...
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Table Pagination & Footer -->
+            <div class="table-pagination-footer">
+                <div class="pagination-info">
+                    Showing <span id="pagStart">0</span> to <span id="pagEnd">0</span> of <span id="pagTotal">0</span> entries
+                </div>
+                <div class="pagination-controls">
+                    <button class="btn-page" id="prevPageBtn" disabled>
+                        <i class="fa-solid fa-chevron-left"></i> Previous
+                    </button>
+                    <div class="page-numbers" id="pageNumbersContainer">
+                        <!-- Dynamic page buttons -->
+                    </div>
+                    <button class="btn-page" id="nextPageBtn" disabled>
+                        Next <i class="fa-solid fa-chevron-right"></i>
+                    </button>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <!-- MODAL 1: Add / Edit Expense Modal -->
+    <div class="modal-backdrop" id="expenseModal">
+        <div class="modal-dialog glass-card">
+            <div class="modal-header">
+                <div class="modal-title-wrap">
+                    <div class="modal-icon-badge" id="modalIconBadge">
+                        <i class="fa-solid fa-receipt"></i>
+                    </div>
+                    <div>
+                        <h3 class="modal-title" id="expenseModalTitle">Log New Expense</h3>
+                        <p class="modal-subtitle">Syncs directly into expenses_data.xlsx</p>
+                    </div>
+                </div>
+                <button class="modal-close-btn" id="closeExpenseModalBtn">&times;</button>
+            </div>
+
+            <form id="expenseForm" class="modal-form">
+                <input type="hidden" id="modalExpenseId" value="">
+
+                <!-- Quick Amount Presets -->
+                <div class="form-group">
+                    <label class="form-label">Amount ($) <span class="required">*</span></label>
+                    <div class="amount-input-wrap">
+                        <span class="currency-symbol">$</span>
+                        <input type="number" step="0.01" min="0.01" id="modalAmount" class="modal-input amount-big" placeholder="0.00" required>
+                    </div>
+                    <div class="quick-preset-chips">
+                        <button type="button" class="chip-preset" data-val="5">+$5</button>
+                        <button type="button" class="chip-preset" data-val="10">+$10</button>
+                        <button type="button" class="chip-preset" data-val="25">+$25</button>
+                        <button type="button" class="chip-preset" data-val="50">+$50</button>
+                        <button type="button" class="chip-preset" data-val="100">+$100</button>
+                        <button type="button" class="chip-preset" data-val="500">+$500</button>
+                    </div>
+                </div>
+
+                <!-- Description -->
+                <div class="form-group">
+                    <label class="form-label">Description / Note <span class="required">*</span></label>
+                    <input type="text" id="modalDescription" class="modal-input" placeholder="e.g., Grocery shopping, Uber ride, Dinner" required>
+                </div>
+
+                <div class="form-row-2">
+                    <!-- Category -->
+                    <div class="form-group">
+                        <label class="form-label">Category <span class="required">*</span></label>
+                        <select id="modalCategory" class="modal-select" required>
+                            <option value="" disabled selected>Select Category</option>
+                        </select>
+                    </div>
+
+                    <!-- Payment Method -->
+                    <div class="form-group">
+                        <label class="form-label">Payment Method</label>
+                        <select id="modalPaymentMethod" class="modal-select">
+                            <option value="Credit Card">Credit Card</option>
+                            <option value="Debit Card">Debit Card</option>
+                            <option value="Cash">Cash</option>
+                            <option value="Bank Transfer">Bank Transfer</option>
+                            <option value="UPI / Online">UPI / Online</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Transaction Date <span class="required">*</span></label>
+                    <input type="date" id="modalDate" class="modal-input" required>
+                </div>
+
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" id="cancelExpenseModalBtn">Cancel</button>
+                    <button type="submit" class="btn btn-primary" id="saveExpenseSubmitBtn">
+                        <i class="fa-solid fa-check"></i>
+                        <span id="saveExpenseBtnText">Save to Excel</span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL 2: Budget Manager Modal -->
+    <div class="modal-backdrop" id="budgetsModal">
+        <div class="modal-dialog glass-card modal-lg">
+            <div class="modal-header">
+                <div class="modal-title-wrap">
+                    <div class="modal-icon-badge icon-blue">
+                        <i class="fa-solid fa-sliders"></i>
+                    </div>
+                    <div>
+                        <h3 class="modal-title">Monthly Category Budgets</h3>
+                        <p class="modal-subtitle">Configure monthly expenditure caps per category</p>
+                    </div>
+                </div>
+                <button class="modal-close-btn" id="closeBudgetsModalBtn">&times;</button>
+            </div>
+
+            <div class="budget-modal-content">
+                <div class="budget-summary-banner">
+                    <div class="banner-stat">
+                        <span class="banner-label">Total Monthly Budget:</span>
+                        <strong class="banner-val text-accent" id="modalTotalBudgetValue">$0.00</strong>
+                    </div>
+                    <div class="banner-note">
+                        <i class="fa-solid fa-circle-info"></i> Changes update the Budgets sheet in Excel.
+                    </div>
+                </div>
+
+                <form id="budgetsForm">
+                    <div class="budgets-inputs-grid" id="budgetsInputsGrid">
+                        <!-- Dynamic category budget inputs -->
+                    </div>
+
+                    <div class="modal-actions">
+                        <button type="button" class="btn btn-secondary" id="cancelBudgetsModalBtn">Cancel</button>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fa-solid fa-save"></i>
+                            <span>Save Budgets</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL 3: AI Statement Upload & Review Modal -->
+    <div class="modal-backdrop" id="statementModal">
+        <div class="modal-dialog glass-card modal-xl">
+            <div class="modal-header">
+                <div class="modal-title-wrap">
+                    <div class="modal-icon-badge icon-ai-sparkle">
+                        <i class="fa-solid fa-wand-magic-sparkles"></i>
+                    </div>
+                    <div>
+                        <h3 class="modal-title">AI Statement Analyzer</h3>
+                        <p class="modal-subtitle">Upload Bank / Amex credit card statements (Excel XLSX, PDF, CSV, Image, TXT)</p>
+                    </div>
+                </div>
+                <button class="modal-close-btn" id="closeStatementModalBtn">&times;</button>
+            </div>
+
+            <!-- View 1: Upload Dropzone -->
+            <div class="statement-modal-body" id="statementUploadStep">
+                <div class="dropzone-box" id="statementDropzone">
+                    <input type="file" id="statementFileInput" accept=".xlsx,.xls,.pdf,.csv,.txt,.png,.jpg,.jpeg,.webp" style="display: none;">
+                    <div class="dropzone-content">
+                        <div class="dropzone-icon">
+                            <i class="fa-solid fa-cloud-arrow-up"></i>
+                        </div>
+                        <h4 class="dropzone-title">Drag & drop your statement here</h4>
+                        <p class="dropzone-desc">or <span class="text-accent link-like">browse files</span> from your computer</p>
+                        <div class="supported-formats-pills">
+                            <span class="pill-badge"><i class="fa-solid fa-file-excel text-emerald"></i> Excel (.xlsx / .xls)</span>
+                            <span class="pill-badge"><i class="fa-solid fa-file-pdf text-rose"></i> Amex / Bank PDF</span>
+                            <span class="pill-badge"><i class="fa-solid fa-file-csv text-blue"></i> Bank CSV</span>
+                            <span class="pill-badge"><i class="fa-solid fa-file-image text-cyan"></i> Receipt Images</span>
+                            <span class="pill-badge"><i class="fa-solid fa-file-lines text-secondary"></i> TXT Export</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="ai-feature-highlights">
+                    <div class="ai-highlight-item">
+                        <i class="fa-solid fa-bolt-lightning text-accent"></i>
+                        <div>
+                            <strong>Instant AI Extraction</strong>
+                            <span>Gemini accurately identifies dates, amounts, and clean merchant names.</span>
+                        </div>
+                    </div>
+                    <div class="ai-highlight-item">
+                        <i class="fa-solid fa-filter-circle-xmark text-emerald"></i>
+                        <div>
+                            <strong>Smart Payment Filtering</strong>
+                            <span>Automatically skips credit card payment receipts so you don't double-count.</span>
+                        </div>
+                    </div>
+                    <div class="ai-highlight-item">
+                        <i class="fa-solid fa-tags text-cyan"></i>
+                        <div>
+                            <strong>Auto-Categorization</strong>
+                            <span>Smartly assigns Food, Bills, Shopping, Travel, etc., with full review before saving.</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- View 2: AI Processing State -->
+            <div class="statement-modal-body" id="statementProcessingStep" style="display: none;">
+                <div class="ai-processing-container">
+                    <div class="ai-pulse-ring">
+                        <i class="fa-solid fa-wand-magic-sparkles"></i>
+                    </div>
+                    <h4 class="processing-title">Gemini AI is analyzing your statement...</h4>
+                    <p class="processing-subtitle" id="processingFileName">Extracting transactions, standardizing dates, and auto-categorizing...</p>
+                    <div class="processing-progress-bar">
+                        <div class="processing-progress-fill"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- View 3: Review & Edit Transactions -->
+            <div class="statement-modal-body" id="statementReviewStep" style="display: none;">
+                <div class="review-header-bar">
+                    <div class="review-meta">
+                        <span class="badge badge-accent" id="reviewCountBadge">0 transactions detected</span>
+                        <span class="review-total-pill">Total: <strong id="reviewTotalAmount">$0.00</strong></span>
+                    </div>
+                    <div class="review-actions">
+                        <button type="button" class="btn btn-secondary btn-sm" id="toggleSelectAllBtn">
+                            <i class="fa-solid fa-check-double"></i> Select All
+                        </button>
+                        <button type="button" class="btn btn-secondary btn-sm" id="reUploadStatementBtn">
+                            <i class="fa-solid fa-rotate-left"></i> Re-upload
+                        </button>
+                    </div>
+                </div>
+
+                <div class="table-responsive review-table-wrap">
+                    <table class="modern-table review-table" id="statementReviewTable">
+                        <thead>
+                            <tr>
+                                <th style="width: 40px;"><input type="checkbox" id="selectAllCheckbox" checked></th>
+                                <th style="width: 130px;">Date</th>
+                                <th>Description / Merchant</th>
+                                <th style="width: 170px;">Category</th>
+                                <th style="width: 140px;">Payment</th>
+                                <th style="width: 110px;" class="text-right">Amount</th>
+                                <th style="width: 50px;" class="text-center">Del</th>
+                            </tr>
+                        </thead>
+                        <tbody id="statementReviewTableBody">
+                            <!-- Dynamic rows -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" id="cancelStatementReviewBtn">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="confirmBulkImportBtn">
+                        <i class="fa-solid fa-file-excel"></i>
+                        <span id="confirmImportBtnText">Import to Excel</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification Container -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <!-- App Scripts -->
+    <script src="/static/js/app.js"></script>
+</body>
+</html>
